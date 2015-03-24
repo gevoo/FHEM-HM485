@@ -200,22 +200,21 @@ sub getChannelBehaviour($) {
 			my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
 			my $channelConfig  = getValueFromDefinitions(
 				$deviceKey . '/channels/' . $chType
-			);
-			
+			);	
 			if ($channelConfig->{'special_parameter'}{'id'} &&
-			   ($channelConfig->{'special_parameter'}{'id'} eq 'BEHAVIOUR') &&
-			   $channelConfig->{'special_parameter'}{'physical'}{'address'}{'index'}) {
+			   ($channelConfig->{'special_parameter'}{'id'} eq 'behaviour') &&
+			    $channelConfig->{'special_parameter'}{'physical'}{'address'}{'index'}) {
 
 				my $chConfig = HM485::ConfigurationManager::getConfigFromDevice(
 					$hash, $chNr
 				);
 
-				my @posibleValuesArray = split(',', $chConfig->{behaviour}{posibleValues});
+				my @posibleValuesArray = split(',', $chConfig->{'behaviour'}{'posibleValues'});
 			
 				# Trim all items in the array
 				@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
 
-				my $value = $chConfig->{behaviour}{value};
+				my $value = $chConfig->{'behaviour'}{'value'};
 				
 				$retVal = $posibleValuesArray[$value];
 			}
@@ -612,16 +611,16 @@ sub buildFrame($$$) {
 			$deviceKey . '/frames/' . $frameType .'/'
 		);
 
-		$retVal = sprintf('%02X%02X', $frameHash->{type}, $chNr-1);
+		$retVal = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##0x7814 ##OK
 
-#print Dumper($frameHash);
+print Dumper($frameHash);
 #print Dumper($frameData);		
 		foreach my $key (keys %{$frameData}) {
-			my $valueId = $frameData->{$key}{physical}{value_id};
+			my $valueId = $frameData->{$key}{'physical'}{'value_id'}; ##state
 
-			if ($valueId && ref($frameHash->{params}{$valueId}) eq 'HASH') {
-				my $paramLen = $frameHash->{params}{$valueId}{size} ? int($frameHash->{params}{$valueId}{size}) : 1;
-				$retVal.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{value});
+			if ($valueId && ref($frameHash->{'parameter'}) eq 'HASH') {
+				my $paramLen = $frameHash->{'parameter'}{'size'} ? int($frameHash->{'parameter'}{'size'}) : 1;
+				$retVal.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
 			}
 		}
 	}

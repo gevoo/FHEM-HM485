@@ -575,24 +575,42 @@ sub onOffToState($$) {
 	my ($stateHash, $cmd) = @_;
 
 	my $state = 0;
-	my $conversionHash = $stateHash->{conversion};
+	my $conversionHash = $stateHash->{'conversion'};
+	my $logicalHash = $stateHash->{'logical'};
+	#Todo es gäbe auch: long_[on,off]_level short_[on,off]_level, wäre dann aus dem eeprom zu holen
 
-	if ($cmd eq 'on' && defined($conversionHash->{true})) {
-		$state = $conversionHash->{true};
-	} elsif ($cmd eq 'off' && defined($conversionHash->{false})) {
-		$state = $conversionHash->{false};
+
+	if ($cmd eq 'on') {
+		if ($logicalHash->{'type'} eq 'boolean') {
+			$state = $conversionHash->{true};
+		} elsif ($logicalHash->{'type'} eq 'float') {
+			$state = $conversionHash->{'factor'} * $logicalHash->{'max'};
+		}
+		
+		
+	} elsif ($cmd eq 'off') {
+		if ($logicalHash->{'type'} eq 'boolean') {
+			$state = $conversionHash->{false};
+		} elsif ($logicalHash->{'type'} eq 'float') {
+			$state = $conversionHash->{'factor'} * $logicalHash->{'min'};
+		}
 	}
-
+print Dumper('onOffToState');
+print Dumper($state,$stateHash);
 	return $state;
 }
 
 sub valueToState($$$$) {
 	my ($chType, $valueHash, $valueKey, $value) = @_;
+	#$value = set_level 43
+	my (undef, $val) = split(' ',$value);
+	#da FHEM von 0 - 100 schickt und HWM 0-1 
+	$val = $val / 100;
+	my $factor = $valueHash->{'conversion'}{'factor'} ? int($valueHash->{'conversion'}{'factor'}) : 1;
 	
-	my $factor = $valueHash->{conversion}{factor} ? int($valueHash->{conversion}{factor}) : 1;
-	
-	my $state = int($value * $factor);
-#print Dumper($chType, $valueHash, $valueKey, $value);
+	my $state = int($val * $factor);
+print Dumper('valueToState');
+print Dumper($chType, $valueHash, $valueKey, $value, $val);
 #return 0;
 
 	return $state;
@@ -613,6 +631,7 @@ sub buildFrame($$$) {
 
 		$retVal = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##0x7814 ##OK
 
+print Dumper('buildFrame');
 print Dumper($frameHash);
 #print Dumper($frameData);		
 		foreach my $key (keys %{$frameData}) {

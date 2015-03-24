@@ -791,11 +791,11 @@ sub HM485_SetChannelState($$$) {
 			
 			if ($frameData) {
 				my $frameType = $valueHash->{'physical'}{'set'}{'request'};
-print Dumper('HM485_SetChannelState '. $hash . 'frameType ' . $frameType .'frameData ' . $frameData);
-print Dumper($frameData);		
+#print Dumper('HM485_SetChannelState '. $hash . 'frameType ' . $frameType .'frameData ' . $frameData);
+#print Dumper($hash);		
 				my $data = HM485::Device::buildFrame($hash, $frameType, $frameData);
-				print Dumper('HM485_SetChannelState:buildFrame ');
-				print Dumper($data);
+#				print Dumper("HM485_SetChannelState:buildFrame ",$hash, $hmwId, $data->{'param'});
+				#print Dumper($data);
 				HM485_SendCommand($hash, $hmwId, $data) if length $data;
 			}
 			
@@ -898,7 +898,7 @@ sub HM485_ProcessResponse($$$) {
 		my $hmwId       = $ioHash->{'.waitForResponse'}{$msgId}{'hmwId'};
 		my $requestData = $ioHash->{'.waitForResponse'}{$msgId}{'requestData'};
 		my $hash        = $modules{'HM485'}{'defptr'}{$hmwId};
-print Dumper("ProcessResponse", $requestType);
+print Dumper("ProcessResponse", $requestType, $requestData);
 		# Check if main device exists or we need create it
 		if($hash->{'DEF'} && $hash->{'DEF'} eq $hmwId) {
 	
@@ -913,6 +913,10 @@ print Dumper("ProcessResponse", $requestType);
 
 			} elsif (grep $_ eq $requestType, ('68', '6E', '76')) {         # h (module type), n (serial number), v (firmware version)
 				HM485_SetAttributeFromResponse($hash, $requestType, $msgData);
+
+			#} elsif (grep $_ eq $requestType, ('69')) {  			        # i (info_level info frequency)
+			#	HM485_processStateData($hash, $requestType, $msgData);
+
 	
 #			} elsif ($requestType eq '70') {                                # p (report packet size, only in bootloader mode)
 
@@ -1123,7 +1127,7 @@ sub HM485_SendCommand($$$) {
 			NAME  => '.tmp',
 		};
 	}
-
+	#print Dumper ("SendCommand");
 	my %params = (hash => $devHash, hmwId => $hmwId, data => $data);
 	InternalTimer(gettimeofday(), 'HM485_DoSendCommand', \%params, 0);
 } 
@@ -1137,8 +1141,9 @@ sub HM485_DoSendCommand($) {
 	my ($paramsHash) = @_;
 
 	my $hmwId       = $paramsHash->{'hmwId'};
-	my $data        = $paramsHash->{'data'};
-	my $requestType = substr($data, 0,2); 
+	my $data        = $paramsHash->{'data'}{'param'};
+	my $requestType = substr($data, 0,2);
+	my $requestIndex = $paramsHash->{'data'}{'index'};
 	my $hash        = $paramsHash->{'hash'};
 	my $ioHash      = $hash->{'IODev'};
 
@@ -1157,6 +1162,7 @@ sub HM485_DoSendCommand($) {
 		$ioHash->{'.waitForResponse'}{$requestId}{'requestType'} = $requestType;
 		$ioHash->{'.waitForResponse'}{$requestId}{'hmwId'}       = $hmwId;
 		$ioHash->{'.waitForResponse'}{$requestId}{'requestData'} = substr($data, 2);
+		$ioHash->{'.waitForResponse'}{$requestId}{'requestIndex'} = $requestIndex;
 
 	} elsif ($requestId && grep $_ eq $requestType, @waitForAckTypes) {
 		$ioHash->{'.waitForAck'}{$requestId}{'requestType'} = $requestType;
@@ -1176,11 +1182,14 @@ sub HM485_DoSendCommand($) {
 sub HM485_ProcessChannelState($$$$) {
 	my ($hash, $hmwId, $msgData, $actionType) = @_;
 print Dumper('ProcessChannelState');
-print Dumper($msgData);
+print Dumper($msgData,$actionType,$hash);
+#print Dumper ($hash);
+
 	my $name = $hash->{'NAME'};
 	if ($msgData) {
 		if ($hash->{'MODEL'}) {
 			my $valueHash = HM485::Device::parseFrameData($hash, $msgData, $actionType);
+			print Dumper("ProcessChannelState:parseFrameData ",$valueHash);
 			if ($valueHash->{'ch'}) {
 				my $chHash = HM485_GetHashByHmwid($hash->{'DEF'} . '_' . $valueHash->{'ch'});
 				HM485_ChannelUpdate($chHash, $valueHash->{'value'});

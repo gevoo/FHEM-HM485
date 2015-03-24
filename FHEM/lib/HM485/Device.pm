@@ -334,7 +334,7 @@ sub parseFrameData($$$) {
 	my $frameData = getFrameInfos($deviceKey, $data, 1, 'from_device');
 
 
-#	print Dumper($frameData);
+	print Dumper("parseFrameData",$frameData);
 	my $retVal    = convertFrameDataToValue($hash, $deviceKey, $frameData);
 
 	return $retVal;
@@ -350,27 +350,38 @@ sub parseFrameData($$$) {
 =cut
 sub getFrameInfos($$;$$) {
 	my ($deviceKey, $data, $event, $dir) = @_;
+	print Dumper("getFrameinfos:",$deviceKey,$data);
 	
 	my $frameType = hex(substr($data, 0,2));
 	my %retVal;
 
 	my $frames = getValueFromDefinitions($deviceKey . '/frames/');
+	print Dumper("getFrameinfos:",$frames,$frameType);
 	if ($frames) {
 		foreach my $frame (keys %{$frames}) {
-			my $fType  = $frames->{$frame}{type};
-			my $fEvent = $frames->{$frame}{event} ? $frames->{$frame}{event} : 0;
-			my $fDir   = $frames->{$frame}{dir} ? $frames->{$frame}{dir} : 0;
+			my $fType  = $frames->{$frame}{'type'};
+			#hierher noch den index
+			my $fEvent = $frames->{$frame}{'event'} ? $frames->{$frame}{'event'} : 0;
+			my $fDir   = $frames->{$frame}{'direction'} ? $frames->{$frame}{'direction'} : 0;
 			
 			if ($frameType == $fType &&
 			   (!defined($event) || $event == $fEvent) &&
 			   (!defined($event) || $dir eq $fDir) ) {
-
+				print Dumper("getFrameinfos:dir&event OK");
 				my $chField = ($frames->{$frame}{ch_field} - 9) * 2;
-				my $params = translateFrameDataToValue($data, $frames->{$frame}{params});
-				if (defined($params)) {
+				my $parameter = translateFrameDataToValue($data, $frames->{$frame}{parameter});
+				#if (defined($parameter)) {
+				#	foreach my $pindex (keys %{$parameter}) {
+				#		#compare the index
+				#		print Dumper("getFrameinfos:pindex",$pindex);
+				#		
+				#	}
+				#}
+				
+				if (defined($parameter)) {
 					%retVal = (
 						ch     => sprintf ('%02d' , hex(substr($data, $chField, 2)) + 1),
-						params => $params,
+						params => $parameter,
 						type   => $fType,
 						event  => $frames->{$frame}{event} ? $frames->{$frame}{event} : 0,
 						id     => $frame
@@ -595,8 +606,8 @@ sub onOffToState($$) {
 			$state = $conversionHash->{'factor'} * $logicalHash->{'min'};
 		}
 	}
-print Dumper('onOffToState');
-print Dumper($state,$stateHash);
+#print Dumper('onOffToState');
+#print Dumper($state,$stateHash);
 	return $state;
 }
 
@@ -609,16 +620,15 @@ sub valueToState($$$$) {
 	my $factor = $valueHash->{'conversion'}{'factor'} ? int($valueHash->{'conversion'}{'factor'}) : 1;
 	
 	my $state = int($val * $factor);
-print Dumper('valueToState');
-print Dumper($chType, $valueHash, $valueKey, $value, $val);
-#return 0;
+#print Dumper('valueToState');
+#print Dumper($chType, $valueHash, $valueKey, $value, $val);
 
 	return $state;
 }
 
 sub buildFrame($$$) {
 	my ($hash, $frameType, $frameData) = @_;
-	my $retVal = '';
+	my %retVal;
 
 	if (ref($frameData) eq 'HASH') {
 		my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
@@ -629,22 +639,24 @@ sub buildFrame($$$) {
 			$deviceKey . '/frames/' . $frameType .'/'
 		);
 
-		$retVal = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##0x7814 ##OK
+		$retVal{'param'} = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##0x7814 ##OK
 
 print Dumper('buildFrame');
 print Dumper($frameHash);
-#print Dumper($frameData);		
+	
 		foreach my $key (keys %{$frameData}) {
 			my $valueId = $frameData->{$key}{'physical'}{'value_id'}; ##state
 
 			if ($valueId && ref($frameHash->{'parameter'}) eq 'HASH') {
 				my $paramLen = $frameHash->{'parameter'}{'size'} ? int($frameHash->{'parameter'}{'size'}) : 1;
-				$retVal.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
+				$retVal{'param'}.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
+				####$retVal = $frameHash->{'parameter'}{'index'};
 			}
 		}
+		$retVal{'index'} = $frameHash->{'parameter'}{'index'};
 	}
 
-	return $retVal;
+	return \%retVal;
 }
 
 =head2

@@ -127,6 +127,20 @@ sub getDeviceKeyFromHash($) {
 	return $retVal;
 }
 
+sub getWaitforResponseIndex($) {
+	my ($hash) = @_;
+	my $retVal = '';
+	if ($hash->{'IODev'}{'.waitForResponse'}) {
+		my $index = $hash->{'IODev'}{'.waitForResponse'};
+		
+		foreach my $key (keys $index) {
+			$retVal = $index->{$key}{'requestIndex'};
+		}
+	}
+	
+	return $retVal;
+}
+
 =head2
 	Get the model from numeric hardware type
 	
@@ -331,12 +345,9 @@ sub parseFrameData($$$) {
 	my ($hash, $data, $actionType) = @_;
 
 	my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
+	#Todo brauch ich ihn ? my $frameIndex = HM485::Device::getWaitforResponseIndex($hash);
 	my $frameData = getFrameInfos($deviceKey, $data, 1, 'from_device');
-
-
-	print Dumper("parseFrameData",$frameData);
 	my $retVal    = convertFrameDataToValue($hash, $deviceKey, $frameData);
-
 	return $retVal;
 }
 
@@ -350,34 +361,30 @@ sub parseFrameData($$$) {
 =cut
 sub getFrameInfos($$;$$) {
 	my ($deviceKey, $data, $event, $dir) = @_;
-	print Dumper("getFrameinfos:",$deviceKey,$data);
-	
+		
 	my $frameType = hex(substr($data, 0,2));
 	my %retVal;
 
 	my $frames = getValueFromDefinitions($deviceKey . '/frames/');
-	print Dumper("getFrameinfos:",$frames,$frameType);
 	if ($frames) {
 		foreach my $frame (keys %{$frames}) {
 			my $fType  = $frames->{$frame}{'type'};
-			#hierher noch den index
+			#my $fIndex = $index;
 			my $fEvent = $frames->{$frame}{'event'} ? $frames->{$frame}{'event'} : 0;
 			my $fDir   = $frames->{$frame}{'direction'} ? $frames->{$frame}{'direction'} : 0;
 			
 			if ($frameType == $fType &&
 			   (!defined($event) || $event == $fEvent) &&
 			   (!defined($event) || $dir eq $fDir) ) {
-				print Dumper("getFrameinfos:dir&event OK");
-				my $chField = ($frames->{$frame}{ch_field} - 9) * 2;
-				my $parameter = translateFrameDataToValue($data, $frames->{$frame}{parameter});
-				#if (defined($parameter)) {
-				#	foreach my $pindex (keys %{$parameter}) {
-				#		#compare the index
-				#		print Dumper("getFrameinfos:pindex",$pindex);
-				#		
-				#	}
-				#}
-				
+				my $chField = ($frames->{$frame}{channel_field} - 9) * 2; #?für was ist das?
+				my $parameter = translateFrameDataToValue($data, $frames->{$frame}{'parameter'});
+				if (defined($parameter)) { #Daten umstrukturieren
+					foreach my $pindex (keys %{$parameter}) {
+						my $replace = $parameter->{$pindex}{param};
+						$parameter->{$replace} = delete $parameter->{$pindex};
+						delete $parameter->{$replace}{param};
+					}
+				}
 				if (defined($parameter)) {
 					%retVal = (
 						ch     => sprintf ('%02d' , hex(substr($data, $chField, 2)) + 1),
@@ -469,25 +476,26 @@ sub getPhysicalAdress($$$$) {
 	return ($adrId, $size, $littleEndian);
 }
 
+
+#hier gibt es 2 versionen
 sub translateFrameDataToValue($$) {
 	my ($data, $params) = @_;
 	$data = pack('H*', $data);
-
 	my $dataValid = 1;
 	my %retVal;
+	
 	if ($params) {
 		foreach my $param (keys %{$params}) {
-			$param = lc($param);
-
-			my $id    = ($params->{$param}{id} - 9);
+			#$param = lc($param); ## lowercase für was?
+			#my $id    = ($params->{$param} - 9);
+			my $id    = ($param -9);
 			my $size  = ($params->{$param}{size});
 			my $value = getValueFromHexData($data, $id, $size);
-#print Dumper(unpack ('H*',$data));
-#print Dumper($value);
 
 			my $constValue = $params->{$param}{const_value};
 			if (!defined($constValue) || $constValue eq $value) {
 				$retVal{$param}{val} = $value;
+				$retVal{$param}{param} = $params->{$param}{param};
 			} else {
 				$dataValid = 0;
 				last
@@ -500,7 +508,6 @@ sub translateFrameDataToValue($$) {
 
 sub getValueFromHexData($;$$) {
 	my ($data, $start, $size) = @_;
-#print Dumper(unpack ('H*',$data), $start, $size);
 
 	$start = $start ? $start : 0;
 	$size  = $size ? $size : 1;
@@ -523,8 +530,9 @@ sub convertFrameDataToValue($$$) {
 	my ($hash, $deviceKey, $frameData) = @_;
 
 	if ($frameData->{ch}) {
-		foreach my $valId (keys %{$frameData->{params}}) {
+		foreach my $valId (keys %{$frameData->{'params'}}) {
 			my $valueMap = getChannelValueMap($hash, $deviceKey, $frameData, $valId);
+			#print Dumper ("convertFrameDataToValue",$valueMap,$frameData->{'params'});
 			if ($valueMap) {
 				$frameData->{params}{$valId}{val} = dataConversion(
 					$frameData->{params}{$valId}{val},
@@ -566,7 +574,8 @@ sub valueToControl($$) {
 			$retVal = ($value > $threshold) ? 'on' : 'off';
 
 		} elsif ($control eq 'dimmer.level') {
-			$retVal = $value;
+			##Ich hoffe der multiplicator gehört hierher
+			$retVal = $value * 100;
 
 		} elsif (index($control, 'button.') > -1) {
 			$retVal = $valName . ' ' . $value;
@@ -606,23 +615,16 @@ sub onOffToState($$) {
 			$state = $conversionHash->{'factor'} * $logicalHash->{'min'};
 		}
 	}
-#print Dumper('onOffToState');
-#print Dumper($state,$stateHash);
 	return $state;
 }
 
 sub valueToState($$$$) {
 	my ($chType, $valueHash, $valueKey, $value) = @_;
-	#$value = set_level 43
-	my (undef, $val) = split(' ',$value);
-	#da FHEM von 0 - 100 schickt und HWM 0-1 
-	$val = $val / 100;
+	#da FHEM von 0 - 100 schickt und HWM 0-1
+	$value = $value / 100;
 	my $factor = $valueHash->{'conversion'}{'factor'} ? int($valueHash->{'conversion'}{'factor'}) : 1;
 	
-	my $state = int($val * $factor);
-#print Dumper('valueToState');
-#print Dumper($chType, $valueHash, $valueKey, $value, $val);
-
+	my $state = int($value * $factor);
 	return $state;
 }
 
@@ -639,18 +641,14 @@ sub buildFrame($$$) {
 			$deviceKey . '/frames/' . $frameType .'/'
 		);
 
-		$retVal{'param'} = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##0x7814 ##OK
+		$retVal{'param'} = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##OK
 
-print Dumper('buildFrame');
-print Dumper($frameHash);
-	
 		foreach my $key (keys %{$frameData}) {
 			my $valueId = $frameData->{$key}{'physical'}{'value_id'}; ##state
 
 			if ($valueId && ref($frameHash->{'parameter'}) eq 'HASH') {
 				my $paramLen = $frameHash->{'parameter'}{'size'} ? int($frameHash->{'parameter'}{'size'}) : 1;
 				$retVal{'param'}.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
-				####$retVal = $frameHash->{'parameter'}{'index'};
 			}
 		}
 		$retVal{'index'} = $frameHash->{'parameter'}{'index'};
@@ -671,12 +669,16 @@ print Dumper($frameHash);
 sub dataConversion($$;$) {
 	my ($value, $convertConfig, $dir) = @_;
 	
-#	print Dumper($convertConfig);
 	my $retVal = $value;
 	if (ref($convertConfig) eq 'HASH') {
 		$dir = ($dir && $dir eq 'to_device') ? 'to_device' : 'from_device';
-
+		#Todo es gibt auch noch type in {'1' => {'type' => 'boolean_integer'}
+		#ist hier das device.pm file noch zu machen ? oder stimmt das wirklich
 		my $type = $convertConfig->{type};
+		if (!$type) {
+			#print Dumper("No dataConversion");
+			return $retVal;
+		}
 
 		if (ref($convertConfig->{value_map}) eq 'HASH' && $convertConfig->{value_map}{type}) {
 			foreach my $key (keys %{$convertConfig->{value_map}}) {
@@ -707,11 +709,14 @@ sub dataConversion($$;$) {
 				$retVal = int($retVal * $factor); 
 			} else {
 #				$retVal = $retVal / $factor;
-				$retVal = sprintf("%.2f", $retVal / $factor);
-				$retVal = $retVal - $offset;
+				if ($retVal eq "off" || $retVal eq "on") {
+					#Todo umkehren
+				} else {
+					$retVal = sprintf("%.2f", $retVal / $factor);
+					$retVal = $retVal - $offset;
+				}
 			}
-#print Dumper($retVal, $factor, $t);
-
+			
 		} elsif ($type eq 'boolean_integer') {
 			my $threshold = $convertConfig->{threshold} ? $convertConfig->{threshold} : 1;
 			my $invert    = $convertConfig->{invert} ? 1 : 0;
@@ -756,9 +761,8 @@ sub getChannelValueMap($$$$) {
 	my $valuePrafix = '';
 
 	$values  = getValueFromDefinitions(
-		$deviceKey . '/channels/' . $chType .'/params/values' . $valuePrafix . '/'
+		$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
 	);
-
 	my $retVal;
 	if (defined($values)) {
 		foreach my $value (keys %{$values}) {

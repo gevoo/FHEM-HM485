@@ -140,7 +140,8 @@ sub HM485_Initialize($) {
 =cut
 sub HM485_Define($$) {
 	my ($hash, $def) = @_;
-
+	#print Dumper ("Define");
+	
 	my @a      = split('[ \t][ \t]*', $def);
 	my $hmwId  = uc($a[2]);
 	my $chNr   = (length($hmwId) > 8) ? substr($hmwId, 9, 2) : undef;
@@ -225,7 +226,7 @@ sub HM485_Define($$) {
 =cut
 sub HM485_Undefine($$) {
 	my ($hash, $name) = @_;
-
+	#print Dumper ("Undefine");
 	my $devName        = $hash->{'device'};
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 
@@ -285,6 +286,8 @@ sub HM485_Rename($$) {
 =cut
 sub HM485_Parse($$) {
 	my ($ioHash, $message) = @_;
+	#print Dumper ("Parse");
+	
 	my $msgId   = ord(substr($message, 2, 1));
 	my $msgCmd  = ord(substr($message, 3, 1));
 	my $msgData = uc( unpack ('H*', substr($message, 4)));
@@ -314,6 +317,7 @@ sub HM485_Parse($$) {
 =cut
 sub HM485_Set($@) {
 	my ($hash, @params) = @_;
+	#print Dumper ("Set");
 
 	my $name  = $params[0];
 	my $cmd   = $params[1];
@@ -458,6 +462,7 @@ sub HM485_Get($@) {
 =cut
 sub HM485_Attr ($$$$) {
 	my (undef, $name, $attrName, $val) =  @_;
+	#print Dumper ("Attr");
 
 	my $hash  = $defs{$name};
 	my $msg   = '';
@@ -531,7 +536,7 @@ sub HM485_Attr ($$$$) {
 =cut
 sub HM485_FhemwebShowConfig($$$) {
 	my ($fwName, $name, $roomName) = @_;
-
+	#print Dumper ("FhemwebShowConfig");
 	my $hash = $defs{$name};
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 
@@ -561,6 +566,8 @@ sub HM485_FhemwebShowConfig($$$) {
 =cut
 sub HM485_GetInfos($$$) {
 	my ($hash, $hmwId, $infoMask) = @_;
+	#print Dumper ("GetInfos");
+	#print Dumper ($hash);
 	$infoMask = defined($infoMask) ? $infoMask : 0;
 
 	if ($infoMask & 0b001) {
@@ -619,7 +626,7 @@ sub HM485_GetConfig($$) {
 =cut
 sub HM485_CreateChannels($$) {
 	my ($hash, $hwType) = @_;
-
+	#print Dumper ("CreateChannels");
 	my $name  = $hash->{'NAME'};
 	my $hmwId = $hash->{'DEF'};
 
@@ -805,7 +812,7 @@ sub HM485_SetChannelState($$$) {
 sub HM485_ValidateSettings($$$) {
 	my ($configHash, $cmdSet, $value) = @_;
 	my $msg = '';
-
+	#print Dumper ("ValidateSettings");
 	if (defined($value)) {
 		my $logical = $configHash->{'logical'};
 		if ($logical->{'type'}) {
@@ -847,7 +854,7 @@ sub HM485_ValidateSettings($$$) {
 sub HM485_SetWebCmd($$) {
 	my ($hash, $model) = @_;
 	my $name = $hash->{'NAME'};
-	
+	#print Dumper ("SetWebCmd");
 #	my $webCmd = HM485::Device::getAllowedSets($hash, $model);
 #	if ($webCmd) {
 #		CommandAttr(undef, $name . ' webCmd ' . $webCmd);
@@ -887,6 +894,7 @@ sub HM485_GetHashByHmwid ($) {
 =cut
 sub HM485_ProcessResponse($$$) {
 	my ($ioHash, $msgId, $msgData) = @_;
+	#print Dumper ("ProcessResponse");
 
 	if ($ioHash->{'.waitForResponse'}{$msgId}{'hmwId'}) {
 		my $requestType = $ioHash->{'.waitForResponse'}{$msgId}{'requestType'};
@@ -1033,6 +1041,7 @@ sub HM485_SetAttributeFromResponse($$$) {
 =cut
 sub HM485_ProcessEvent($$) {
 	my ($ioHash, $msgData) = @_;
+	#print Dumper ("ProcessEvent");
 
 	my $hmwId = substr($msgData, 10,8);
 	$msgData  = (length($msgData) > 17) ? substr($msgData, 18) : '';;
@@ -1066,6 +1075,7 @@ sub HM485_ProcessEvent($$) {
 =cut
 sub HM485_CheckForAutocreate($$;$$) {
 	my ($ioHash, $hmwId, $requestType, $msgData) = @_;
+	#print Dumper ("CheckForAutocreate",$hmwId,);
 	
 	my $logTxt = 'Device %s not defined yet. We need the %s for autocreate';
 
@@ -1112,6 +1122,8 @@ sub HM485_CheckForAutocreate($$;$$) {
 sub HM485_SendCommand($$$) {
 	my ($hash, $hmwId, $data) = @_;
 	$hmwId = substr($hmwId, 0, 8);
+	#print Dumper ("SendCommand");
+	#print Dumper ($data);
 
 	# on send need the hash of the main device
 	my $devHash = $modules{'HM485'}{'defptr'}{$hmwId};
@@ -1133,11 +1145,12 @@ sub HM485_SendCommand($$$) {
 =cut
 sub HM485_DoSendCommand($) {
 	my ($paramsHash) = @_;
-
+	
+	#print Dumper ("DoSendCommand");
+	#print Dumper ($paramsHash);
 	my $hmwId       = $paramsHash->{'hmwId'};
-	my $data        = $paramsHash->{'data'}{'param'};
+	my $data        = $paramsHash->{'data'};
 	my $requestType = substr($data, 0,2);
-	my $requestIndex = $paramsHash->{'data'}{'index'};
 	my $hash        = $paramsHash->{'hash'};
 	my $ioHash      = $hash->{'IODev'};
 
@@ -1156,7 +1169,7 @@ sub HM485_DoSendCommand($) {
 		$ioHash->{'.waitForResponse'}{$requestId}{'requestType'} = $requestType;
 		$ioHash->{'.waitForResponse'}{$requestId}{'hmwId'}       = $hmwId;
 		$ioHash->{'.waitForResponse'}{$requestId}{'requestData'} = substr($data, 2);
-		$ioHash->{'.waitForResponse'}{$requestId}{'requestIndex'} = $requestIndex;
+		#$ioHash->{'.waitForResponse'}{$requestId}{'requestIndex'} = $requestIndex;
 
 	} elsif ($requestId && grep $_ eq $requestType, @waitForAckTypes) {
 		$ioHash->{'.waitForAck'}{$requestId}{'requestType'} = $requestType;
@@ -1175,6 +1188,8 @@ sub HM485_DoSendCommand($) {
 =cut
 sub HM485_ProcessChannelState($$$$) {
 	my ($hash, $hmwId, $msgData, $actionType) = @_;
+	#print Dumper ("ProcessChannelState");
+	
 	my $name = $hash->{'NAME'};
 	if ($msgData) {
 		if ($hash->{'MODEL'}) {
@@ -1195,7 +1210,7 @@ sub HM485_ProcessChannelState($$$$) {
 =cut
 sub HM485_ChannelUpdate($$) {
 	my ($chHash, $valueHash) = @_;
-
+	#print Dumper ("ChannelUpdate");
 	my $name = $chHash->{'NAME'};
 	
 	if ($valueHash && !AttrVal($name, 'ignore', 0)) {
@@ -1216,7 +1231,7 @@ sub HM485_ChannelUpdate($$) {
 =cut
 sub HM485_ChannelDoUpdate($) {
 	my ($params)    = @_;
-	
+	#print Dumper ("ChannelDoUpdate");
 	my $chHash    = $params->{'chHash'};
 	my $valueHash = $params->{'valueHash'};
 	my $name      = $chHash->{'NAME'};

@@ -361,7 +361,7 @@ sub parseFrameData($$$) {
 =cut
 sub getFrameInfos($$;$$) {
 	my ($deviceKey, $data, $event, $dir) = @_;
-		
+			
 	my $frameType = hex(substr($data, 0,2));
 	my %retVal;
 
@@ -369,7 +369,6 @@ sub getFrameInfos($$;$$) {
 	if ($frames) {
 		foreach my $frame (keys %{$frames}) {
 			my $fType  = $frames->{$frame}{'type'};
-			#my $fIndex = $index;
 			my $fEvent = $frames->{$frame}{'event'} ? $frames->{$frame}{'event'} : 0;
 			my $fDir   = $frames->{$frame}{'direction'} ? $frames->{$frame}{'direction'} : 0;
 			
@@ -378,7 +377,7 @@ sub getFrameInfos($$;$$) {
 			   (!defined($event) || $dir eq $fDir) ) {
 				my $chField = ($frames->{$frame}{channel_field} - 9) * 2; #?für was ist das?
 				my $parameter = translateFrameDataToValue($data, $frames->{$frame}{'parameter'});
-				if (defined($parameter)) { #Daten umstrukturieren
+				if (ref($parameter) eq 'HASH') { #Daten umstrukturieren
 					foreach my $pindex (keys %{$parameter}) {
 						my $replace = $parameter->{$pindex}{param};
 						$parameter->{$replace} = delete $parameter->{$pindex};
@@ -487,6 +486,7 @@ sub translateFrameDataToValue($$) {
 	if ($params) {
 		foreach my $param (keys %{$params}) {
 			#$param = lc($param); ## lowercase für was?
+			#print Dumper ("translateFrameDataToValue",$data);
 			#my $id    = ($params->{$param} - 9);
 			my $id    = ($param -9);
 			my $size  = ($params->{$param}{size});
@@ -630,7 +630,7 @@ sub valueToState($$$$) {
 
 sub buildFrame($$$) {
 	my ($hash, $frameType, $frameData) = @_;
-	my %retVal;
+	my $retVal;
 
 	if (ref($frameData) eq 'HASH') {
 		my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
@@ -641,20 +641,19 @@ sub buildFrame($$$) {
 			$deviceKey . '/frames/' . $frameType .'/'
 		);
 
-		$retVal{'param'} = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##OK
+		$retVal = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##OK
 
 		foreach my $key (keys %{$frameData}) {
 			my $valueId = $frameData->{$key}{'physical'}{'value_id'}; ##state
 
 			if ($valueId && ref($frameHash->{'parameter'}) eq 'HASH') {
 				my $paramLen = $frameHash->{'parameter'}{'size'} ? int($frameHash->{'parameter'}{'size'}) : 1;
-				$retVal{'param'}.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
+				$retVal .= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
 			}
 		}
-		$retVal{'index'} = $frameHash->{'parameter'}{'index'};
 	}
 
-	return \%retVal;
+	return $retVal;
 }
 
 =head2

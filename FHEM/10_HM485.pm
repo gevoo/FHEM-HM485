@@ -205,6 +205,8 @@ sub HM485_Define($$) {
 
 					HM485_GetInfos($hash, $hmwId, 0b111);
 	#Todo Enable Config--	HM485_GetConfig($hash, $addr);
+					HM485_GetConfig($hash, $addr);
+					
 				} else {
 					# Todo: Maybe we must queue "auto get info" if IODev not opened yet 
 				}

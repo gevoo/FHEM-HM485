@@ -1539,7 +1539,7 @@ our %definition = (
                                                   "address_start" => 0x0b,
                                                   "address_step" => 1,
                                                   "parameter" => {
-                                                                   "id" => "logging",
+                                                     	"logging" => {
                                                                    "logical" => {
                                                                                   "option" => {
                                                                                                 "off" => {},
@@ -1558,6 +1558,7 @@ our %definition = (
                                                                                    "type" => "integer"
                                                                                  }
                                                                  },
+                                                  },
                                                   "type" => "master"
                                                 },
                                     "values" => {

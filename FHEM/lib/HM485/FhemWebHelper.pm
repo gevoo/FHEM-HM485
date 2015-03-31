@@ -26,10 +26,8 @@ sub showConfig($$$) {
 
 sub makeConfigTable($$) {
 	my ($hash, $configHash) = @_;
+
 	my $name = $hash->{NAME};
-	
-#	print Dumper($configHash);
-	
 	my $content = '';
 	my $rowCount = 1;
 	foreach my $cKey (sort keys %{$configHash}) {
@@ -39,14 +37,14 @@ sub makeConfigTable($$) {
 		my $value = '';
 		if ($config->{type} eq 'option') {
 			$value = configSelect(
-				$cKey, $config->{posibleValues}, $config->{value}
+				$cKey, $config->{possibleValues}, $config->{value}
 			)
 
 		} elsif ($config->{type} eq 'boolean') {
 			$value = configSelect(
 				$cKey, 'no:0,yes:1', ($config->{value} ? 'yes' : 'no')
 			);
-
+			
 		} else {
 			$value = configInput(
 				$cKey, $config->{value}, $config->{min}, $config->{max}
@@ -92,25 +90,30 @@ sub configInput($$;$$) {
 }
 
 =head2
-	Generate a select list of $posibleValues
-	$posibleValues splits at : for name value pais if exists
+	Generate a select list of $possibleValues
+	$possibleValues splits at : for name value pais if exists
 	
 	@param	string	name of the select list
 	@param	string	posible items (comma seperated)
 	@param	string	the value for specific item sould selected
 =cut
 sub configSelect($$$) {
-	my ($name, $posibleValues, $value) = @_;
+	my ($name, $possibleValues, $value) = @_;
+	my @possibleValuesArray;
 	
 	my $content = '<select onchange="FW_HM485setChange(this)" name="' . $name . '" class="arg.HM485.config">';
 	my $options = '';
-	my @posibleValuesArray = split(',', $posibleValues);
-
+	if (ref $possibleValues eq 'HASH') {
+		@possibleValuesArray = HM485::ConfigurationManager::optionsToArray($possibleValues);
+	} else {
+		@possibleValuesArray = split(',', $possibleValues);
+	}
+	
 	# Trim all items in the array
-	@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
+	@possibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @possibleValuesArray);
 	
 	my $cc = 0;
-	foreach my $oKey (@posibleValuesArray) {
+	foreach my $oKey (@possibleValuesArray) {
 		my ($optionName, $optionValue) = split(':', $oKey);
 
 		$optionValue = defined($optionValue) ? $optionValue : $optionName;

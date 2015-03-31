@@ -223,14 +223,14 @@ sub getChannelBehaviour($) {
 					$hash, $chNr
 				);
 
-				my @posibleValuesArray = split(',', $chConfig->{'behaviour'}{'posibleValues'});
+				my @possibleValuesArray = split(',', $chConfig->{'behaviour'}{'possibleValues'});
 			
 				# Trim all items in the array
-				@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
+				@possibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @possibleValuesArray);
 
 				my $value = $chConfig->{'behaviour'}{'value'};
 				
-				$retVal = $posibleValuesArray[$value];
+				$retVal = $possibleValuesArray[$value];
 			}
 		}
 	}
@@ -457,19 +457,19 @@ sub getPhysicalAdress($$$$) {
 
 	# we must check if spechial params exists.
 	# Then adress_id and step retreve from spechial params 
-	my $valId = $configHash->{physical}{value_id};
+	my $valId = $configHash->{'physical'}{'address'}{'index'};
 	if ($valId) {
 		my $spConfig       = $chConfig->{special_param}{$valId};
 
-		$adressStep  = $spConfig->{physical}{address_step} ? $spConfig->{physical}{address_step}  : 0;
+		$adressStep  = $spConfig->{'physical'}{'address_step'} ? $spConfig->{'physical'}{'address_step'}  : 0;
 		$size        = $spConfig->{physical}{size}         ? $spConfig->{physical}{size} : 1;
-		$adrId       = $spConfig->{physical}{address_id}   ? $spConfig->{physical}{address_id} : 0;
+		$adrId       = $spConfig->{physical}{'address'}{'index'}   ? $spConfig->{physical}{'address'}{'index'} : 0;
 		$adrId       = $adrId + ($chId * $adressStep * ceil($size));
 
 	} else {
 		$size       = $configHash->{physical}{size} ? $configHash->{physical}{size} : 1;
-		$adrId      = $configHash->{physical}{address_id} ? $configHash->{physical}{address_id} : 0;
-		$adrId      = $adrId + $adressStart + ($chId * $adressStep * ceil($size));
+		$adrId      = $configHash->{physical}{'address'}{'index'} ? $configHash->{physical}{'address'}{'index'} : 0;
+		$adrId      = $adrId + $adressStart + ($chId * $adressStep);
 	}
 	
 	my $littleEndian = ($configHash->{physical}{endian} && $configHash->{physical}{endian} eq 'little') ? 1 : 0;

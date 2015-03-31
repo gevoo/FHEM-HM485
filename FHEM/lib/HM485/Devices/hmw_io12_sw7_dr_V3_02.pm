@@ -123,7 +123,7 @@ our %definition = (
                                                          "type" => "integer"
                                                        }
                                            },
-                            "type" => 0x6B
+                            "type" => 0x4B
                           },
       "key_event_short" => {
                              "channel_field" => 10,
@@ -141,7 +141,7 @@ our %definition = (
                                                           "type" => "integer"
                                                         }
                                             },
-                             "type" => 0x6B
+                             "type" => 0x4B
                            },
       "key_sim_long" => {
                           "channel_field" => 10,
@@ -159,7 +159,7 @@ our %definition = (
                                                      }
                                          },
                           "receiver_channel_field" => 11,
-                          "type" => 0x6B
+                          "type" => 0x4B
                         },
       "key_sim_short" => {
                            "channel_field" => 10,
@@ -177,7 +177,7 @@ our %definition = (
                                                       }
                                           },
                            "receiver_channel_field" => 11,
-                           "type" => 0x6B
+                           "type" => 0x4B
                          },
       "level_get" => {
                        "channel_field" => 10,

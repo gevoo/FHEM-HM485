@@ -116,7 +116,7 @@ sub getConfigSettings($) {
 		if ($deviceKey && defined $chNr) {
 			my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
 			my $configSettings = HM485::Device::getValueFromDefinitions(
-				$deviceKey . '/channels/' . $chType . '/paramset/type:MASTER'
+				$deviceKey . '/channels/' . $chType . '/paramset/type:master'
 			);
 
 			if (ref($configSettings) eq 'HASH') {
@@ -151,7 +151,7 @@ sub convertSettingsToEepromData($$) {
 		my $deviceKey    = HM485::Device::getDeviceKeyFromHash($hash);
 		my $chType       = HM485::Device::getChannelType($deviceKey, $chNr);
 		my $masterConfig = HM485::Device::getValueFromDefinitions(
-			$deviceKey . '/channels/' . $chType . '/paramset/type:MASTER'
+			$deviceKey . '/channels/' . $chType . '/paramset/type:master'
 		);
 
 		$adressStart = $masterConfig->{'address_start'} ? $masterConfig->{'address_start'} : 0;

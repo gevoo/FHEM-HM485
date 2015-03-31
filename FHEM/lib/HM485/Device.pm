@@ -494,9 +494,9 @@ sub translateFrameDataToValue($$) {
 			my $value = getValueFromHexData($data, $id, $size);
 			my $constValue = $params->{$param}{const_value};
 
-			if (!defined($constValue) || $constValue eq $value) {
+			if (!$constValue || $constValue eq $value) {
 				$retVal{$param}{val} = $value;
-				if ($constValue eq $value) {
+				if ($constValue) {
 					$retVal{$param}{param} = 'const_value';
 				} else {
 					$retVal{$param}{param} = $params->{$param}{param};
@@ -534,7 +534,7 @@ sub getValueFromHexData($;$$) {
 sub convertFrameDataToValue($$$) {
 	my ($hash, $deviceKey, $frameData) = @_;
 
-	if ($frameData->{ch}) {
+	if ($frameData->{'ch'}) {
 		foreach my $valId (keys %{$frameData->{'params'}}) {
 			my $valueMap = getChannelValueMap($hash, $deviceKey, $frameData, $valId);
 			#print Dumper ("convertFrameDataToValue",$valueMap,$frameData->{'params'});
@@ -627,15 +627,15 @@ sub valueToState($$$$) {
 	my ($chType, $valueHash, $valueKey, $value) = @_;
 	#da FHEM von 0 - 100 schickt und HWM 0-1
 	$value = $value / 100;
-	my $factor = $valueHash->{'conversion'}{'factor'} ? int($valueHash->{'conversion'}{'factor'}) : 1;
 	
+	my $factor = $valueHash->{'conversion'}{'factor'} ? int($valueHash->{'conversion'}{'factor'}) : 1;
 	my $state = int($value * $factor);
 	return $state;
 }
 
 sub buildFrame($$$) {
 	my ($hash, $frameType, $frameData) = @_;
-	my %retVal;
+	my $retVal;
 
 	if (ref($frameData) eq 'HASH') {
 		my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
@@ -646,20 +646,19 @@ sub buildFrame($$$) {
 			$deviceKey . '/frames/' . $frameType .'/'
 		);
 
-		$retVal{'param'} = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##OK
+		$retVal = sprintf('%02X%02X', $frameHash->{type}, $chNr-1); ##OK
 
 		foreach my $key (keys %{$frameData}) {
 			my $valueId = $frameData->{$key}{'physical'}{'value_id'}; ##state
 
 			if ($valueId && ref($frameHash->{'parameter'}) eq 'HASH') {
 				my $paramLen = $frameHash->{'parameter'}{'size'} ? int($frameHash->{'parameter'}{'size'}) : 1;
-				$retVal{'param'}.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
+				$retVal.= sprintf('%0' . $paramLen * 2 . 'X', $frameData->{$key}{'value'});
 			}
 		}
-		$retVal{'index'} = $frameHash->{'parameter'}{'index'};
 	}
 
-	return \%retVal;
+	return $retVal;
 }
 
 =head2
@@ -1111,6 +1110,24 @@ sub getAllowedSets($) {
 	my $model  = $hash->{MODEL};
 	my $onOff  = 'on:noArg off:noArg ';
 	my $keys   = 'press_short:noArg press_long:noArg';
+	
+	my %cmdOverwrite = (
+		'switch.state'	=> "on:noArg off:noArg"
+	);
+		
+	my %cmdArgs = (
+		'none'			=> "noArg",
+   		'blind.level'	=> "slider,0,1,100 on:noArg off:noArg",
+   		'blind.stop'	=> "noArg",
+   		'dimmer.level' 	=> "slider,0,1,100 on:noArg off:noArg",
+   		'button.long'	=> "noArg",
+   		'button.short'	=> "noArg",
+   		'digital_analog_output.frequency' => "feedback erwünscht",
+   		'door_sensor.state' => "feedback erwünscht"
+	);
+	
+	my @cmdlist;
+
 
 	my $retVal = undef;
 	if (defined($model) && $model) {
@@ -1137,20 +1154,33 @@ sub getAllowedSets($) {
 			} else {
 				my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 				my $chType    = getChannelType($deviceKey, $chNr);
-
-				if ($chType eq 'key') {
-					$retVal = $keys;
-		
-				} elsif ($chType eq 'switch' || $chType eq 'digital_output') {
-					$retVal = $onOff;
-	
-				} elsif ($chType eq 'dimmer' || $chType eq 'blind') {
-					$retVal = $onOff . 'level:slider,0,1,100';
+				my $commands  = getValueFromDefinitions(
+					#$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
+					$deviceKey . '/channels/' . $chType .'/paramset/values/parameter'
+				);
+				foreach my $command (sort keys %{$commands}) {
+					if ($commands->{$command}{'operations'}) {
+						my @values = split(',', $commands->{$command}{'operations'});
+  						foreach my $val (@values) {
+    						if ($val eq 'write' && $commands->{$command}{'physical'}{'interface'} eq 'command') {
+								if ($commands->{$command}{'control'}) {
+									my $ctrl = $commands->{$command}{'control'};
+									if ($cmdOverwrite{$ctrl}) {
+										push @cmdlist, $cmdOverwrite{$ctrl};
+									}
+									if($cmdArgs{$ctrl}) {
+										push @cmdlist, "$command:$cmdArgs{$ctrl}";	
+									}
+								} else {push @cmdlist, "$command";}
+							}
+    					}
+					}
 				}
 			}
 		}
 	}
-
+	$retVal = join(" ",@cmdlist);
+	#print Dumper ("getallaowedsets",$retVal);
 	return $retVal;
 }
 

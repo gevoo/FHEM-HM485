@@ -259,11 +259,13 @@ sub setCtrlRxNum     ($$) {return ((0b10011111 & $_[0]) | ($_[1] << 5));}
 
 sub getHmwIdAndChNrFromHash($) {
 	my ($hash) = @_;
-	
-	my $hmwId = $hash->{DEF};
-	my $chNr   = (length($hmwId) > 8) ? substr($hmwId, 9, 2) : 0;
-	
-	return ($hmwId, $chNr); 
+	#Todo There is a funktion which sends a emty hash to this funktion
+
+	if (ref $hash eq 'HASH') {
+		my $hmwId = $hash->{DEF};
+		my $chNr   = (length($hmwId) > 8) ? substr($hmwId, 9, 2) : 0;
+		return ($hmwId, $chNr);
+	}
 }
 
 sub getHashKeyBySubkey($$$) {

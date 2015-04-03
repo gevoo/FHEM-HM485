@@ -289,7 +289,7 @@ our %definition = (
 								"ui_flags" => "internal"
 							},
 							"level" => {
-								"control" => "dimmer.level",
+								"control" => "blind.level",
 								"conversion" => {
 									"factor" => 200,
 									"type" => "float_integer_scale"

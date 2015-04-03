@@ -6,7 +6,7 @@ XMLHelper.pl
 
 =head1 SYNOPSIS
 
-XMLHelper.pl -imputFile </input/path> -outputPath </output/path> [-indentStyle <0..2>]
+XMLHelper.pl -inputFile </input/path> -outputPath </output/path> [-indentStyle <0..2>]
 
 =head1 OPTIONS
 
@@ -64,7 +64,7 @@ my $indentStyle = 2;
 sub main();
 sub convertFiles($$);
 sub dumperSortkey($);
-sub printDump($$);
+sub printDump($$$);
 sub reMap($);
 
 ################################################
@@ -128,9 +128,10 @@ sub convertFile($$) {
 	$Data::Dumper::Quotekeys = 0;
 	$Data::Dumper::Useqq = 1;
 
+	my $tab = "\t";
 	if ($indentStyle != 0) {
 		$Data::Dumper::Quotekeys = 1;
-		$Data::Dumper::Pad = '    ';
+		$Data::Dumper::Pad = $tab;
 	}
 	
 	$Data::Dumper::Sortkeys = \&dumperSortkey;
@@ -138,25 +139,33 @@ sub convertFile($$) {
 	my $content = 'package HM485::Devicefile;' . "\n";
 	my $lf = ($indentStyle != 0) ? "\n" : '';
 
-	$content.= 'our %definition = (' . ($lf ? $lf . '  ' : '') . '\'' . $defKey . '\' => {' . $lf;
+	$content.= 'our %definition = (' . ($lf ? $lf . $tab : '') . '\'' . $defKey . '\' => {' . $lf;
 
-	$content.= lc(printDump('version', $xml->{'version'}));
-	$content.= lc(printDump('eep_size', $xml->{'eep_size'}));
-	$content.= printDump('supported_types', $xml->{'supported_types'});
-	$content.= lc(printDump('paramset', $xml->{'paramset'}));
-	$content.= lc(printDump('frames', $xml->{'frames'}));
-	$content.= lc(printDump('channels', $xml->{'channels'}));
-	$content.=  '  }' . $lf. ');	' . $lf;
+	$content.= lc(printDump('version', $xml->{'version'}, 2));
+	$content.= lc(printDump('eep_size', $xml->{'eep_size'}, 2));
+	$content.= printDump('supported_types', $xml->{'supported_types'}, 2);
+	$content.= lc(printDump('paramset', $xml->{'paramset'}, 2));
+	$content.= lc(printDump('frames', $xml->{'frames'}, 2));
+	$content.= lc(printDump('channels', $xml->{'channels'}, 2));
+	$content.=  $tab . '}' . $lf. ');	' . $lf;
 	
-	# convert strings in values  
-	$content =~ s/(\s*=>\s*)(")(0x[0-9a-fA-F]*)(")(.*)/$1$3$5/g;						# string to hex
-	$content =~ s/(\s*=>\s*)(")([0-9]*\.[0-9]*)(")(.*)/$1$3$5/g;						# string to float
-	$content =~ s/(\s*=>\s*)("#)([a-zA-Z])(")(.*)/$1.sprintf('0x%02X',ord($3)).$5/ge;	# char to hex
-	$content =~ s/(\s*=>\s*)(")(true|false)(")(.*)/$1$3$5/g;							# true / false to 1/0
-	$content =~ s/(\s*=>\s*)("\+)([0-9]*\.{0,1}[0-9]*)(")(.*)/$1$3$5/g;					# +1 -> 1
+	$content =~ s/(\s*=>\s*)(0x[0-9])([a-z])(.*)/$1.$2.uc($3).$4/ge;	# hex Kleinbuchstaben in hex Großbuchstaben
+	$content =~ s/(\s*=>\s*)(0x)([a-z]{1,4})(.*)/$1.$2.uc($3).$4/ge;	# hex Kleinbuchstaben in hex Großbuchstaben
 	
 	open(FH, ">$outputFile") or die('Error opening "' . $outputFile . '"');
 	print FH $content;
+	#print FH "@{[ %($xml) ]}\n";
+	#foreach my $key (keys %{$xml}) {
+	#	if (ref($xml->{$key}) eq 'HASH') {
+	#		my $x1 = $xml->{$key};
+	#		print FH "$key -->\n";
+	#		foreach my $k1 (keys %{$x1}) {
+	#			print FH "$k1 => $x1->{$k1}\n";
+	#		}
+	#	} else {
+	#		print FH "$key => $xml->{$key}\n";
+	#	}
+	#}
 	close(FH);
 }
 
@@ -165,20 +174,40 @@ sub dumperSortkey($) {
 	return [(sort keys %$hash)];
 }
 
-sub printDump($$) {
-	my ($key, $value) = @_;
+sub printDump($$$) {
+	my ($key, $value, $tiefe) = @_;
 
 	my $retVal = '';
 	if ($value) {
 		$retVal = Dumper($value);
-#print Dumper($value);
-#die;
+		
 		chop ($retVal);
-	
+		my $tab = "\t";
 		$retVal = '\'' . $key . '\' => ' . $retVal . ',';
 		if ($indentStyle != 0) {
-			$retVal = '    ' . $retVal . "\n";
+			my @ar = split( "\n", $retVal);
+			$retVal = '';
+			foreach (@ar){
+				$_ =~ s/^\s+//; # Leerzeichen am Anfang entfernen
+				my $c = substr( $_, -1);
+				if ( $c eq '{' && substr( $_, -2) ne '{}' && substr( $_, -3) ne '{},') {
+					$retVal .= $tab x $tiefe . $_ . "\n";
+					$tiefe++;
+				} elsif ( ( $c eq '}' || substr( $_, -2) eq '},') && substr( $_, -2) ne '{}' && substr( $_, -3) ne '{},') {
+					$tiefe--;
+					$retVal .= $tab x $tiefe . $_ . "\n";
+				} else {
+					$retVal .= $tab x $tiefe . $_ . "\n";
+				}
+			}
 		}
+		# convert strings in values  
+		$retVal =~ s/(\s*=>\s*)(")(0x[0-9a-fA-F]*)(")(.*)/$1$3$5/g;						# string to hex
+		$retVal =~ s/(\s*=>\s*)(")([0-9]*\.[0-9]*)(")(.*)/$1$3$5/g;						# string to float
+		$retVal =~ s/(\s*=>\s*)("#)([a-zA-Z])(")(.*)/$1.sprintf('0x%02X',ord($3)).$5/ge;	# char to hex
+		$retVal =~ s/(\s*=>\s*)(")(true|false)(")(.*)/$1$3$5/g;							# true / false to 1/0
+		$retVal =~ s/(\s*=>\s*)("\+)([0-9]*\.{0,1}[0-9]*)(")(.*)/$1$3$5/g;					# +1 -> 1
+	
 	}
 
 	return $retVal;

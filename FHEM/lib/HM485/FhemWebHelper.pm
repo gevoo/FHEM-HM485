@@ -34,6 +34,8 @@ sub makeConfigTable($$) {
 		my $config = $configHash->{$cKey};
 		my $rowContent.= wrapTd($cKey . ':');
 		
+		#print Dumper ("makeConfigTable",$config);
+		
 		my $value = '';
 		if ($config->{type} eq 'option') {
 			$value = configSelect(
@@ -69,7 +71,7 @@ sub makeConfigTable($$) {
 		);
 	}
 	
-	my $title = 'Configuration';
+	my $title = 'Configuration not Ready';
 	my $className = lc($title);
 	$className =~ s/[^A-Za-z]/_/g;
 

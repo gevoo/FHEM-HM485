@@ -778,7 +778,6 @@ sub HM485_SetChannelState($$$) {
 	my $retVal = '';
 	
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
-	print Dumper("SetChannelState****************************************************************",$hmwId, $chNr);
 	my $devHash        = $main::modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
 	my $deviceKey      = HM485::Device::getDeviceKeyFromHash($devHash); ##OK
 	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr); ##OK

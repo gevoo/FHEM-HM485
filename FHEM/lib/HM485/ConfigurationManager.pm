@@ -17,7 +17,7 @@ use Data::Dumper;
 =cut
 sub getConfigFromDevice($$) {
 	my ($hash, $chNr) = @_;
-	#Todo wird 2mal aufgerufen suchen von wo
+	#Todo wird 2 mal aufgerufen suchen von wo und warum
 
 	my $retVal = {};
 	my $configHash = getConfigSettings($hash);
@@ -65,26 +65,23 @@ sub getConfigFromDevice($$) {
 			}
 		}
 	}
-	print Dumper("getConfigFromDevice,$chNr");
+	#print Dumper("getConfigFromDevice,$chNr");
 	return $retVal;
 }
 
 sub optionsToArray($) {
 	my ($optionList) = @_;
-	
-	print Dumper ("optionsToArray",$optionList); #sollte so aussehen 'no:0,yes:1'
-	
+	#Todo schöner programmieren ist a bissl umständlich geschrieben
+	#der Name ist eigenlich auch falsch ist kein Array sondern 
+	#ein string Komma separiert
 	
 	if (ref $optionList eq 'HASH') {
-		print Dumper ("optionsToArray ist HASH");
 		my @map;
 		my $default;
 		my $nodefault;
 		foreach my $oKey (keys %{$optionList}) {
-			#das geht bestimmt schöner!
-			print Dumper("optionsToArray:$oKey");
+			#das geht bestimmt schöner! zuerst default suchen und danach nochmal alles wieder durchsuchen?
 			if (defined( $optionList->{$oKey}{default})) {
-				print Dumper("optionsToArray:default,$optionList->{$oKey}{default}");
 				$default = $optionList->{$oKey}{default};
 				if ($default == '1') {
 					$nodefault = 0;
@@ -100,9 +97,7 @@ sub optionsToArray($) {
 				push (@map, $oKey.':'.$nodefault);
 			}
 		}
-		print Dumper("optionsToArray:map:",@map);
-		my $retVal = join(",",@map);
-		return $retVal;
+		return join(",",@map);
 	} else {
 		return map {s/ //g; $_; } split(',', $optionList);
 	}
@@ -163,6 +158,7 @@ sub getConfigSettings($) {
 			}
 			if (ref($configSettings) eq 'HASH') {
 				# delete hidden configs
+				# Todo derzeit auskommentiert, wollte sehen was hier kommt.
 				#foreach my $config (keys $configSettings->{'parameter'}) {
 				#	if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
 				#		delete($configSettings->{'parameter'}{$config});

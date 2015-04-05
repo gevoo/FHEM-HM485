@@ -731,8 +731,6 @@ sub dataConversion($$;$) {
 }
 
 sub getChannelValueMap($$$$) {
-	print Dumper ("getChannelValueMap");
-	#Todo das nächste, was uz machen ist mal sehen, ob das so stimmt
 	my ($hash, $deviceKey, $frameData, $valId) = @_;
 	
 	my $channel = $frameData->{'ch'};
@@ -754,12 +752,12 @@ sub getChannelValueMap($$$$) {
 	my $retVal;
 	if (defined($values)) {
 		foreach my $value (keys %{$values}) {
-			if ($values->{$value}{physical}{value_id} eq $valId) {
-				if (!defined($values->{$value}{physical}{event}{frame}) ||
-					$values->{$value}{physical}{event}{frame} eq $frameData->{id}
+			if ($values->{$value}{'physical'}{'value_id'} eq $valId) {
+				if (!defined($values->{$value}{'physical'}{'event'}{'frame'}) ||
+					$values->{$value}{'physical'}{'event'}{'frame'} eq $frameData->{'id'}
 				) {
 					$retVal = $values->{$value};
-					$retVal->{name} = $value;
+					$retVal->{'name'} = $value;
 					last;
 				}
 			}

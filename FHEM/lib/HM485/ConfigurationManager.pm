@@ -17,6 +17,7 @@ use Data::Dumper;
 =cut
 sub getConfigFromDevice($$) {
 	my ($hash, $chNr) = @_;
+	#Todo wird 2mal aufgerufen suchen von wo
 
 	my $retVal = {};
 	my $configHash = getConfigSettings($hash);
@@ -25,8 +26,6 @@ sub getConfigFromDevice($$) {
 		my $adressStart = $configHash->{'address_start'} ? $configHash->{'address_start'} : 0;
 		my $adressStep = $configHash->{'address_step'} ? $configHash->{'address_step'} : 0; #Todo oder lieber 1
 		
-		print Dumper("getConfigFromDevice adr_step $configHash->{'address_step'} adr_start: $configHash->{'address_start'}");
-		#my %parameterHasch = 
 		foreach my $config (keys $configHash->{'parameter'}) {
 			my $dataConfig = $configHash->{'parameter'}{$config};
 			if (ref($dataConfig) eq 'HASH') {
@@ -66,25 +65,47 @@ sub getConfigFromDevice($$) {
 			}
 		}
 	}
-	print Dumper("getConfigFromDevice",$retVal);
+	print Dumper("getConfigFromDevice,$chNr");
 	return $retVal;
 }
 
 sub optionsToArray($) {
 	my ($optionList) = @_;
-	my @map;
-	#print Dumper ("optionstoarray",$optionList);
+	
+	print Dumper ("optionsToArray",$optionList); #sollte so aussehen 'no:0,yes:1'
+	
 	
 	if (ref $optionList eq 'HASH') {
-		foreach my $item (sort keys %{$optionList}) {
-			push @map, $item;
+		print Dumper ("optionsToArray ist HASH");
+		my @map;
+		my $default;
+		my $nodefault;
+		foreach my $oKey (keys %{$optionList}) {
+			#das geht bestimmt schöner!
+			print Dumper("optionsToArray:$oKey");
+			if (defined( $optionList->{$oKey}{default})) {
+				print Dumper("optionsToArray:default,$optionList->{$oKey}{default}");
+				$default = $optionList->{$oKey}{default};
+				if ($default == '1') {
+					$nodefault = 0;
+				} else {
+					$nodefault = 1;
+				}
+			}
 		}
+		foreach my $oKey (keys %{$optionList}) {
+			if (defined( $optionList->{$oKey}{default})) {
+				push (@map, $oKey.':'.$default);
+			} else {
+				push (@map, $oKey.':'.$nodefault);
+			}
+		}
+		print Dumper("optionsToArray:map:",@map);
+		my $retVal = join(",",@map);
+		return $retVal;
 	} else {
-		map {s/ //g; $_; } split(',', $optionList);
+		return map {s/ //g; $_; } split(',', $optionList);
 	}
-	#return map {s/ //g; $_; } split(',', $optionList);
-	#print Dumper ("optionstoarray",@map);
-	return @map;
 }
 
 # Todo: Check if used anymore
@@ -123,22 +144,18 @@ sub getConfigSettings($) {
 
 	# Todo: Caching for Config
 #	my $configSettings = $devHash->{cache}{configSettings};
-#	print Dumper($configSettings);
 #	if (!$configSettings) {
 		my $name   = $devHash->{'NAME'};
 		my $deviceKey = HM485::Device::getDeviceKeyFromHash($devHash);
-		#print Dumper ("getConfigSettings",$deviceKey,$chNr); #HMW_IO12_SW7_DR_V3_02 0
 		
 		if ($deviceKey && defined $chNr) {
 			my $chType  = HM485::Device::getChannelType($deviceKey, $chNr);
-			#print Dumper ("getConfigSettings",$chType); #maintenance 
 			
 			if ($chNr == 0 && $chType eq 'maintenance') {
 				#channel 0 has a different path and has no address_start and address_step
 				$configSettings = HM485::Device::getValueFromDefinitions(
 				 	$deviceKey . '/paramset'
 				);
-				#print Dumper ("getConfigSettings",$configSettings);
 			} else {
 				$configSettings = HM485::Device::getValueFromDefinitions(
 				 	$deviceKey . '/channels/' . $chType .'/paramset/master'
@@ -156,19 +173,15 @@ sub getConfigSettings($) {
 
 #		$devHash->{cache}{configSettings} = $configSettings;
 #	}
-print Dumper("getConfigSettings adr_step: $configSettings->{address_step} adr_start: $configSettings->{address_start}");
 	return $configSettings;
 }
 
 
 sub convertSettingsToEepromData($$) {
 	my ($hash, $configData) = @_;
-	print Dumper("convertSettingsToEepromData");
-#	die;	
 
 	my $adressStart = 0;
 	my $adressStep  = 0;
-
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 	
 	my $adressOffset = 0;
@@ -178,8 +191,6 @@ sub convertSettingsToEepromData($$) {
 		my $masterConfig = HM485::Device::getValueFromDefinitions(
 			$deviceKey . '/channels/' . $chType . '/paramset/master/parameter/'
 		);
-		#print Dumper ("convertSettingsToEepromData",$masterConfig);
-
 		$adressStart = $masterConfig->{'physical'}{'address_start'} ? $masterConfig->{'physical'}{'address_start'} : 0;
 		$adressStep  = $masterConfig->{'physical'}{'address_step'}  ? $masterConfig->{'physical'}{'address_step'} : 1;
 		
@@ -245,8 +256,6 @@ sub convertSettingsToEepromData($$) {
 		$addressData->{$adrKey}{'value'} = $value;
 #		$addressData->{$adrKey}{value} = $littleEndian ? reverse($addressData->{$adrKey}{value}) : $addressData->{$adrKey}{value};
 	}
-	
-#	print Dumper($addressData);
 	return $addressData;
 }
 

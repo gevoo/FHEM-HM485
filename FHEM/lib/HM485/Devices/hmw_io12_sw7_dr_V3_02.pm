@@ -1219,7 +1219,7 @@ our %definition = (
 						"address_start" => 0x1F,
 						"address_step" => 2,
 						"parameter" => {
-							"id" => "logging",
+						"logging" => {
 							"logical" => {
 								"option" => {
 									"off" => {},
@@ -1237,6 +1237,7 @@ our %definition = (
 								"size" => 0.1,
 								"type" => "integer"
 							}
+						}
 						},
 						"type" => "master"
 					},

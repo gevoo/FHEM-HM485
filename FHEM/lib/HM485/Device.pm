@@ -254,6 +254,7 @@ sub getHwTypeList() {
 =cut
 sub getValueFromDefinitions ($) {
 	my ($path) = @_;
+	
 	my $retVal = undef;
 	my @pathParts = split('/', $path);
 	my %definitionPart = %deviceDefinitions;
@@ -353,7 +354,6 @@ sub getFrameInfos($$;$$) {
 	if ($frames) {
 		foreach my $frame (keys %{$frames}) {
 			my $fType  = $frames->{$frame}{'type'};
-			#my $fIndex = $index;
 			my $fEvent = $frames->{$frame}{'event'} ? $frames->{$frame}{'event'} : 0;
 			my $fDir   = $frames->{$frame}{'direction'} ? $frames->{$frame}{'direction'} : 0;
 			
@@ -363,7 +363,6 @@ sub getFrameInfos($$;$$) {
 				my $chField = ($frames->{$frame}{'channel_field'} - 9) * 2; #?für was ist das?
 				my $parameter = translateFrameDataToValue($data, $frames->{$frame}{'parameter'});
 				if (defined($parameter)) { #Daten umstrukturieren
-					#print Dumper ("getFrameInfos Parameter:",$parameter,$frames->{$frame}{'parameter'},$chField,$frames->{$frame}{channel_field});
 					foreach my $pindex (keys %{$parameter}) {
 						my $replace = $parameter->{$pindex}{'param'};
 						$parameter->{$replace} = delete $parameter->{$pindex};
@@ -378,7 +377,6 @@ sub getFrameInfos($$;$$) {
 						event  => $frames->{$frame}{event} ? $frames->{$frame}{event} : 0,
 						id     => $frame
 					);
-					#print Dumper ("getFrameInfos",$chField);
 					last;
 				}
 			}
@@ -391,46 +389,35 @@ sub getFrameInfos($$;$$) {
 sub getValueFromEepromData($$$$;$) {
 	my ($hash, $configHash, $adressStart, $adressStep, $wholeByte) = @_;
 	$wholeByte = $wholeByte ? 1 : 0;
-	
-	#print Dumper ("getValueFromEepromData: adrstart:$adressStart adrstp:$adressStep");
-	#print Dumper ("getValueFromEepromData size:$configHash->{'physical'}{'size'} index:$configHash->{'physical'}{'address'}{'index'}");
-
+	#$wholeByte = $wholeByte ? 0 : 1;
 	#my $adressStep = $configHash->{address_step} ? $configHash->{address_step}  : 1;
 	my ($adrId, $size, $littleEndian) = getPhysicalAddress($hash, $configHash, $adressStart, $adressStep);
-	print Dumper ("getValueFromEepromData:getPhysicalAddress adrID:$adrId size:$size endian:$littleEndian");
-
+	
 	my $retVal = '';
 	if (defined($adrId)) {
-		if ($adrId == 0) { print Dumper("adrID no defined !!!!!!!!"); }
 		my $data = HM485::Device::getRawEEpromData(
 			$hash, int($adrId), ceil($size), 0, $littleEndian
 		);
-		my $debughex = unpack ('H*',$data);
-		print Dumper ("getValueFromEepromData:getRawEEpromData hex: $debughex");
+		
 		my $eepromValue = 0;
-
-		my $adrStart = (($adrId * 10) - (int($adrId) * 10)) / 10;
+		my $adrStart = (($adrId * 10) - (int($adrId) * 10)) / 10; #???????????
 		$adrStart    = ($adrStart < 1 && !$wholeByte) ? $adrStart: 0;
 		$size        = ($size < 1 && $wholeByte) ? 1 : $size;
 		
 		$eepromValue = getValueFromHexData($data, $adrStart, $size);
-		print Dumper ("getValueFromEepromData:getValueFromHexDataa",$eepromValue);
-		$retVal = dataConversion($eepromValue, $configHash->{conversion}, 'from_device');
-		my $default = $configHash->{logical}{'default'};
+		$retVal = dataConversion($eepromValue, $configHash->{'conversion'}, 'from_device');
+		
+		my $default = $configHash->{'logical'}{'default'};
 		if (defined($default)) {
 			if ($size == 1) {
 				$retVal = ($eepromValue != 0xFF) ? $retVal : $default;
-
 			} elsif ($size == 2) {
 				$retVal = ($eepromValue != 0xFFFF) ? $retVal : $default;
-
 			} elsif ($size == 4) {
 				$retVal = ($eepromValue != 0xFFFFFFFF) ? $retVal : $default;
 			}
 		}
 	}
-	print Dumper ("getValueFromEepromData",$retVal);
-
 	return $retVal;
 }
 
@@ -439,25 +426,19 @@ sub getPhysicalAddress($$$$) {
 		
 	my $adrId = 0;
 	my $size  = 0;
-
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
-	#print Dumper ("getPhysicalAddress: $hmwId, $chNr");
-
 	my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
 	my $chConfig  = getValueFromDefinitions(
 		$deviceKey . '/channels/' . $chType .'/'
 	);
-	#print Dumper ("getPhysicalAddress",$chConfig);
 	my $chId = int($chNr) - $chConfig->{'index'}; ##OK
 
 	# we must check if special params exists.
 	# Then address_id and step retreve from special params 
-	my $valId = $configHash->{'physical'}{'address'}{'index'}; ##OK
-	print Dumper ("getPhysicalAddress valId: $configHash->{'physical'}{'address'}{'index'}");
-	#print Dumper ("getPhysicalAddress: ",$configHash->{'physical'});
+	my $valId = $configHash->{'physical'}{'address'}{'index'};
 
-	#if (defined $valId) { Manchmal hat der index o.o dann gehts nicht !!
+	#if (defined $valId) { Manchmal hat der index 0.0 dann gehts nicht !!
 		my $spConfig       = $chConfig->{special_param}{$valId};
 		if ($spConfig) {
 			$adressStep  = $spConfig->{'physical'}{'address_step'} ? $spConfig->{'physical'}{'address_step'}  : 0;
@@ -470,7 +451,6 @@ sub getPhysicalAddress($$$$) {
 			$adrId      = $adrId + $adressStart + ($chId * $adressStep);
 		}
 	#} else { Todo irgend ein else?? evtl 0 retour für error handling ?
-	#print Dumper ("getPhysicalAddress size: $size addressStart: $adressStart valIdx: $valId adrID: $adrId chID: $chId chType: $chType");
 	my $littleEndian = ($configHash->{'physical'}{'endian'} && $configHash->{'physical'}{'endian'} eq 'little') ? 1 : 0;
 	return ($adrId, $size, $littleEndian);
 }
@@ -485,8 +465,6 @@ sub translateFrameDataToValue($$) {
 	
 	if ($params) {
 		foreach my $param (keys %{$params}) {
-			#$param = lc($param); ## lowercase für was?
-			#my $id    = ($params->{$param} - 9);
 			my $id    = ($param -9);
 			my $size  = ($params->{$param}{size});
 			my $value = getValueFromHexData($data, $id, $size);
@@ -535,7 +513,6 @@ sub convertFrameDataToValue($$$) {
 	if ($frameData->{'ch'}) {
 		foreach my $valId (keys %{$frameData->{'params'}}) {
 			my $valueMap = getChannelValueMap($hash, $deviceKey, $frameData, $valId);
-			#print Dumper ("convertFrameDataToValue",$valueMap,$frameData->{'params'});
 			if ($valueMap) {
 				$frameData->{params}{$valId}{val} = dataConversion(
 					$frameData->{params}{$valId}{val},
@@ -565,10 +542,10 @@ sub convertFrameDataToValue($$$) {
 =cut
 sub valueToControl($$) {
 	my ($paramHash, $value) = @_;
+	
 	my $retVal = $value;
-
-	my $control = $paramHash->{control};
-	my $valName = $paramHash->{name};
+	my $control = $paramHash->{'control'};
+	my $valName = $paramHash->{'name'};
 
 	if ($control) {
 		if ($control eq 'switch.state') {
@@ -577,6 +554,7 @@ sub valueToControl($$) {
 			$retVal = ($value > $threshold) ? 'on' : 'off';
 
 		} elsif ($control eq 'dimmer.level') {
+			#Todo es gibt auch noch einen blind level hat der auch einen faktor oder den gleichen ?
 			##Ich hoffe der multiplicator gehört hierher
 			$retVal = $value * 100;
 
@@ -677,29 +655,29 @@ sub dataConversion($$;$) {
 		$dir = ($dir && $dir eq 'to_device') ? 'to_device' : 'from_device';
 		#Todo es gibt auch noch type in {'1' => {'type' => 'boolean_integer'}
 		#ist hier das device.pm file noch zu machen ? oder stimmt das wirklich
-		my $type = $tmpConvertConfig->{type};
+		my $type = $tmpConvertConfig->{'type'};
 		if (!$type) {
-			print Dumper("No dataConversion try 1 $dir", $tmpConvertConfig->{'1'});
 			#todo da geht noch mehr ich verstehs noch nicht ganz if type or value_map
-			$type = $tmpConvertConfig->{'1'}{type};
+			#es gibt nich nur {'1'}{'type'} auch 2 und 3 hab ich schon gesehen
+			$type = $tmpConvertConfig->{'1'}{'type'};
 			$tmpConvertConfig = $tmpConvertConfig->{'1'};
 			if (!$type) {
 				return $retVal;
 			}
 		}
 
-		if (ref($tmpConvertConfig->{value_map}) eq 'HASH' && $tmpConvertConfig->{value_map}{type}) {
+		if (ref($tmpConvertConfig->{'value_map'}) eq 'HASH' && $tmpConvertConfig->{'value_map'}{'type'}) {
 			foreach my $key (keys %{$tmpConvertConfig->{value_map}}) {
-				my $valueMap = $tmpConvertConfig->{value_map}{$key};
+				my $valueMap = $tmpConvertConfig->{'value_map'}{$key};
 				if (ref($valueMap) eq 'HASH') {
 
-					if ($tmpConvertConfig->{value_map}{type} eq 'integer_integer_map') {
-						my $valParam  = $valueMap->{parameter_value} ? $valueMap->{parameter_value} : 0;
-						my $valDevice = $valueMap->{device_value} ? $valueMap->{device_value} : 0;
+					if ($tmpConvertConfig->{'value_map'}{'type'} eq 'integer_integer_map') {
+						my $valParam  = $valueMap->{'parameter_value'} ? $valueMap->{'parameter_value'} : 0;
+						my $valDevice = $valueMap->{'device_value'} ? $valueMap->{'device_value'} : 0;
 	
-						if ($dir eq 'to_device' && $valueMap->{to_device}) {
+						if ($dir eq 'to_device' && $valueMap->{'to_device'}) {
 							$retVal = ($value == $valParam) ? $valDevice : $retVal;
-						} elsif ($dir eq 'from_device' && $valueMap->{from_device}) {
+						} elsif ($dir eq 'from_device' && $valueMap->{'from_device'}) {
 							$retVal = ($value == $valDevice) ? $valParam : $retVal;
 						}
 					}
@@ -708,8 +686,8 @@ sub dataConversion($$;$) {
 		}
 
 		if ($type eq 'float_integer_scale' || $type eq 'integer_integer_scale') {
-			my $factor = $tmpConvertConfig->{factor} ? $tmpConvertConfig->{factor} : 1;
-			my $offset = $tmpConvertConfig->{offset} ? $tmpConvertConfig->{offset} : 0;
+			my $factor = $tmpConvertConfig->{'factor'} ? $tmpConvertConfig->{'factor'} : 1;
+			my $offset = $tmpConvertConfig->{'offset'} ? $tmpConvertConfig->{'offset'} : 0;
 			$factor = ($type eq 'float_integer_scale') ? $factor : 1;
 #my $t = $retVal;
 			if ($dir eq 'to_device') {
@@ -727,7 +705,7 @@ sub dataConversion($$;$) {
 			
 		} elsif ($type eq 'boolean_integer') {
 			my $threshold = $tmpConvertConfig->{threshold} ? $tmpConvertConfig->{threshold} : 1;
-			my $invert    = $tmpConvertConfig->{invert} ? 1 : 0;
+			my $invert    = $tmpConvertConfig->{'invert'} ? 1 : 0;			
 			my $false     = $tmpConvertConfig->{false} ? $tmpConvertConfig->{false} : 0;
 			my $true      = $tmpConvertConfig->{true} ? $tmpConvertConfig->{true} : 1;
 
@@ -753,13 +731,15 @@ sub dataConversion($$;$) {
 }
 
 sub getChannelValueMap($$$$) {
+	print Dumper ("getChannelValueMap");
+	#Todo das nächste, was uz machen ist mal sehen, ob das so stimmt
 	my ($hash, $deviceKey, $frameData, $valId) = @_;
 	
-	my $channel = $frameData->{ch};
+	my $channel = $frameData->{'ch'};
 	my $chType = getChannelType($deviceKey, $channel);
 
-	my $hmwId = $hash->{DEF}; 
-	my $chHash = $main::modules{HM485}{defptr}{$hmwId . '_' . $channel};
+	my $hmwId = $hash->{'DEF'}; 
+	my $chHash = $main::modules{'HM485'}{'defptr'}{$hmwId . '_' . $channel};
 
 	my $values;
 	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash);
@@ -791,7 +771,7 @@ sub getChannelValueMap($$$$) {
 
 sub getEmptyEEpromMap ($) {
 	my ($hash) = @_;
-	print Dumper ("getEmptyEEpromMap");
+	#print Dumper ("getEmptyEEpromMap");
 
 	my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 	my $eepromAddrs = parseForEepromData(getValueFromDefinitions($deviceKey));
@@ -839,8 +819,7 @@ sub getEmptyEEpromMap ($) {
 =cut
 sub getRawEEpromData($;$$$$) {
 	my ($hash, $start, $len, $hex, $littleEndian) = @_;
-	print Dumper("getRawEEpromData");
-
+	
 	my $hmwId   = $hash->{DEF};
 	my $devHash = $main::modules{HM485}{defptr}{substr($hmwId,0,8)};
 
@@ -957,6 +936,8 @@ sub setRawEEpromData($$$$) {
 sub parseForEepromData($;$$) {
 	my ($configHash, $adrHash, $params) = @_;
 
+	#print Dumper ("parseForEepromData");
+
 	$adrHash = $adrHash ? $adrHash : {};
 	$params  = $params ? $params : {};
 	
@@ -1000,7 +981,7 @@ sub parseForEepromData($;$$) {
 =cut
 sub getEEpromData($$) {
 	my ($paramHash, $params) = @_;
-	print Dumper ("getEEpromData");
+	#print Dumper ("getEEpromData");
 	
 	my $count = ($params->{count} && $params->{count} > 0) ? $params->{count} : 1; 
 	my $retVal;
@@ -1020,7 +1001,7 @@ sub getEEpromData($$) {
 			my $size = $paramHash->{physical}{size};
 			$size = $size * $count;
 			$size = isInt($paramHash->{physical}{size}) ? $size : ceil(($size / 0.8));
-
+			
 			$retVal->{$adrStart} = $size;
 		}
 	}

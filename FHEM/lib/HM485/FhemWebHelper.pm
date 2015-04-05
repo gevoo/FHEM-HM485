@@ -34,23 +34,21 @@ sub makeConfigTable($$) {
 		my $config = $configHash->{$cKey};
 		my $rowContent.= wrapTd($cKey . ':');
 		
-		#print Dumper ("makeConfigTable",$config);
-		
 		my $value = '';
 		if ($config->{type} eq 'option') {
+			my $possibleValusList = HM485::ConfigurationManager::optionsToArray($config->{possibleValues});
+			
 			$value = configSelect(
-				$cKey, $config->{possibleValues}, $config->{value}
-			)
-
+				$cKey, $possibleValusList, $config->{value}
+			);
 		} elsif ($config->{type} eq 'boolean') {
 			$value = configSelect(
 				$cKey, 'no:0,yes:1', ($config->{value} ? 'yes' : 'no')
 			);
-			
 		} else {
 			$value = configInput(
 				$cKey, $config->{value}, $config->{min}, $config->{max}
-			)
+			);
 		}
 		
 		my $unit = $config->{unit} ? $config->{unit} : '';
@@ -100,22 +98,17 @@ sub configInput($$;$$) {
 	@param	string	the value for specific item sould selected
 =cut
 sub configSelect($$$) {
-	my ($name, $possibleValues, $value) = @_;
-	my @possibleValuesArray;
+	my ($name, $posibleValues, $value) = @_;
 	
 	my $content = '<select onchange="FW_HM485setChange(this)" name="' . $name . '" class="arg.HM485.config">';
 	my $options = '';
-	if (ref $possibleValues eq 'HASH') {
-		@possibleValuesArray = HM485::ConfigurationManager::optionsToArray($possibleValues);
-	} else {
-		@possibleValuesArray = split(',', $possibleValues);
-	}
-	
+	my @posibleValuesArray = split(',', $posibleValues);
+
 	# Trim all items in the array
-	@possibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @possibleValuesArray);
+	@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
 	
 	my $cc = 0;
-	foreach my $oKey (@possibleValuesArray) {
+	foreach my $oKey (@posibleValuesArray) {
 		my ($optionName, $optionValue) = split(':', $oKey);
 
 		$optionValue = defined($optionValue) ? $optionValue : $optionName;

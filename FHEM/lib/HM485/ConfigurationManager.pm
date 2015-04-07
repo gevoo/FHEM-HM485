@@ -118,7 +118,7 @@ sub convertOptionToValue($$) {
 		}
 		$i++;
 	}
-	
+	print Dumper ("convertOptionToValue:$option <> $retVal");
 	return $retVal;
 }
 
@@ -181,14 +181,14 @@ sub convertSettingsToEepromData($$) {
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 	
 	my $adressOffset = 0;
-	if ($chNr > 0) {
+	if ($chNr > 0) { #im channel 0 gibt es nur address index kein address_start oder address_step
 		my $deviceKey    = HM485::Device::getDeviceKeyFromHash($hash);
 		my $chType       = HM485::Device::getChannelType($deviceKey, $chNr);
 		my $masterConfig = HM485::Device::getValueFromDefinitions(
-			$deviceKey . '/channels/' . $chType . '/paramset/master/parameter/'
+			$deviceKey . '/channels/' . $chType . '/paramset/master'
 		);
-		$adressStart = $masterConfig->{'physical'}{'address_start'} ? $masterConfig->{'physical'}{'address_start'} : 0;
-		$adressStep  = $masterConfig->{'physical'}{'address_step'}  ? $masterConfig->{'physical'}{'address_step'} : 1;
+		$adressStart = $masterConfig->{'address_start'} ? $masterConfig->{'address_start'} : 0;
+		$adressStep  = $masterConfig->{'address_step'}  ? $masterConfig->{'address_step'} : 1;
 		
 		$adressOffset = $adressStart + ($chNr - 1) * $adressStep;
 	}
@@ -199,16 +199,19 @@ sub convertSettingsToEepromData($$) {
 		my ($adrId, $size, $littleEndian) = HM485::Device::getPhysicalAddress(
 			$hash, $configHash, $adressStart, $adressStep
 		);
-
+		#print Dumper ("convertSettingsToEepromData:pysicalAddress: $adrId, $size, $littleEndian");
 		my $value = $configData->{$config}{'value'};
+		print Dumper ("convertSettingsToEepromData $config $value");
 		if ($configData->{$config}{config}{'logical'}{'type'} eq 'option') {
-			$value = convertOptionToValue(
-				$configData->{$config}{'config'}{'logical'}{'options'}, $value
-			);
+			#$value = convertOptionToValue(
+			#	$configData->{$config}{'config'}{'logical'}{'option'}, $value
+			#);
+			print Dumper ("convertSettingsToEepromData: option :$value");
 		} else {
 			$value = HM485::Device::dataConversion(
 				$value, $configData->{$config}{'config'}{'conversion'}, 'to_device'
 			);
+			print Dumper ("convertSettingsToEepromData: conversion :$value");
 		}
 
 		my $adrKey = int($adrId);
@@ -220,25 +223,36 @@ sub convertSettingsToEepromData($$) {
 		} else {
 			if (!defined($addressData->{$adrKey}{'value'})) {
 				my $eepromValue = HM485::Device::getValueFromEepromData (
-					$hash, $configData->{$config}{'config'}, $adrKey, 1
+					$hash, $configData->{$config}{'config'}, $adressStart, $adressStep, 1
 				);
 				$addressData->{$adrKey}{'value'} = $eepromValue;
 				$addressData->{$adrKey}{'text'} = '';
 				$addressData->{$adrKey}{'size'} = ceil($size); ## ceil warum ?
+				print Dumper ("Value not defined!!!! eepromvalue:",$eepromValue,$adrKey);
 			}
 
 			my $bit = ($adrId * 10) - ($adrKey * 10);
+			print Dumper ("Bit:$bit");
 			$addressData->{$adrKey}{'_adrId'} = $adrId;
 			$addressData->{$adrKey}{'_value_old'} = $addressData->{$adrKey}{'value'};
 			$addressData->{$adrKey}{'_value'} = $value;
+			print Dumper ("Teste:",$addressData->{$adrKey});
 
-			if ($value) {
-				my $bitMask = 1 << $bit;
-				$value = $value | $bitMask;
-			} else {
+			if ($value) { #value=1
+				print Dumper ("bitschupsenIF: value:$value");
 				my $bitMask = unpack ('C', pack 'c', ~(1 << $bit));
-				$value = $value & $bitMask;
+				#my $bitMask = 1 << $bit;
+				$value = $value | $bitMask;
+				print Dumper ("bitschupsenIF: bitMask:$bitMask bit:$bit value:$value");
+			} else { #value=0
+				print Dumper ("bitschupsenEl: value:$value");
+				my $bitMask = unpack ('C', pack 'c', ~(1 << $bit));
+				#my $bitMask = 1 << $bit;
+				$value = $value | $bitMask;
+				print Dumper ("bitschupsenEl: bitMask:$bitMask bit:$bit value:$value");
 			}
+			
+			#print Dumper ("subBit:$value");
 
 			$addressData->{$adrKey}{'text'} .= ' ' . $config . '=' . $configData->{$config}{'value'}
 		}
@@ -252,6 +266,7 @@ sub convertSettingsToEepromData($$) {
 		$addressData->{$adrKey}{'value'} = $value;
 #		$addressData->{$adrKey}{value} = $littleEndian ? reverse($addressData->{$adrKey}{value}) : $addressData->{$adrKey}{value};
 	}
+	#print Dumper ("convertSettingsToEepromData,",$addressData);
 	return $addressData;
 }
 

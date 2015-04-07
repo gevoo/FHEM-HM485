@@ -388,16 +388,17 @@ sub getFrameInfos($$;$$) {
 
 sub getValueFromEepromData($$$$;$) {
 	my ($hash, $configHash, $adressStart, $adressStep, $wholeByte) = @_;
+	
 	$wholeByte = $wholeByte ? 1 : 0;
-	#$wholeByte = $wholeByte ? 0 : 1;
 	#my $adressStep = $configHash->{address_step} ? $configHash->{address_step}  : 1;
 	my ($adrId, $size, $littleEndian) = getPhysicalAddress($hash, $configHash, $adressStart, $adressStep);
 	
 	my $retVal = '';
 	if (defined($adrId)) {
+		my $default;
 		my $data = HM485::Device::getRawEEpromData(
-			$hash, int($adrId), ceil($size), 0, $littleEndian
-		);
+			$hash, int($adrId), ceil($size), 0, $littleEndian 
+		); ###schon wieder ceil
 		
 		my $eepromValue = 0;
 		my $adrStart = (($adrId * 10) - (int($adrId) * 10)) / 10; #???????????
@@ -405,9 +406,16 @@ sub getValueFromEepromData($$$$;$) {
 		$size        = ($size < 1 && $wholeByte) ? 1 : $size;
 		
 		$eepromValue = getValueFromHexData($data, $adrStart, $size);
-		$retVal = dataConversion($eepromValue, $configHash->{'conversion'}, 'from_device');
+		print Dumper ("getValueFromEepromData adrId: $adrId adrStart $adrStart eepromValue: $eepromValue" );
 		
-		my $default = $configHash->{'logical'}{'default'};
+		if ($wholeByte == 0) {
+			$retVal = dataConversion($eepromValue, $configHash->{'conversion'}, 'from_device');
+			$default = $configHash->{'logical'}{'default'};
+		} else { #dataConversion bei mehreren gesetzten bits ist wohl sinnlos kommt null raus
+				 #auch ein default Value bringt teilweise nur unsinn in solchen fällen Richtig ???
+			$retVal = $eepromValue;
+		}
+		
 		if (defined($default)) {
 			if ($size == 1) {
 				$retVal = ($eepromValue != 0xFF) ? $retVal : $default;
@@ -436,22 +444,22 @@ sub getPhysicalAddress($$$$) {
 
 	# we must check if special params exists.
 	# Then address_id and step retreve from special params 
-	my $valId = $configHash->{'physical'}{'address'}{'index'};
-
-	#if (defined $valId) { Manchmal hat der index 0.0 dann gehts nicht !!
-		my $spConfig       = $chConfig->{special_param}{$valId};
+	if (exists $configHash->{'physical'}{'address'}{'index'}){
+		my $valId        = $configHash->{'physical'}{'address'}{'index'};
+		my $spConfig     = $chConfig->{'special_param'}{$valId};
 		if ($spConfig) {
 			$adressStep  = $spConfig->{'physical'}{'address_step'} ? $spConfig->{'physical'}{'address_step'}  : 0;
-			$size        = $spConfig->{physical}{size}         ? $spConfig->{physical}{size} : 1;
-			$adrId       = $spConfig->{physical}{'address'}{'index'}   ? $spConfig->{physical}{'address'}{'index'} : 0;
+			$size        = $spConfig->{'physical'}{'size'}         ? $spConfig->{'physical'}{'size'} : 1;
+			$adrId       = $spConfig->{'physical'}{'address'}{'index'}   ? $spConfig->{'physical'}{'address'}{'index'} : 0;
 			$adrId       = $adrId + ($chId * $adressStep * ceil($size));
 		} else {
 			$size       = $configHash->{'physical'}{'size'} ? $configHash->{'physical'}{'size'} : 1;
 			$adrId      = $configHash->{'physical'}{'address'}{'index'} ? $configHash->{'physical'}{'address'}{'index'} : 0;
 			$adrId      = $adrId + $adressStart + ($chId * $adressStep);
 		}
-	#} else { Todo irgend ein else?? evtl 0 retour für error handling ?
+	}
 	my $littleEndian = ($configHash->{'physical'}{'endian'} && $configHash->{'physical'}{'endian'} eq 'little') ? 1 : 0;
+	#if ($size <= 0.9) {$littleEndian = 0;} #bitfields are endian ?????????????
 	return ($adrId, $size, $littleEndian);
 }
 
@@ -466,16 +474,16 @@ sub translateFrameDataToValue($$) {
 	if ($params) {
 		foreach my $param (keys %{$params}) {
 			my $id    = ($param -9);
-			my $size  = ($params->{$param}{size});
+			my $size  = ($params->{$param}{'size'});
 			my $value = getValueFromHexData($data, $id, $size);
-			my $constValue = $params->{$param}{const_value};
+			my $constValue = $params->{$param}{'const_value'};
 
 			if (!$constValue || $constValue eq $value) {
 				$retVal{$param}{val} = $value;
 				if ($constValue) {
-					$retVal{$param}{param} = 'const_value';
+					$retVal{$param}{'param'} = 'const_value';
 				} else {
-					$retVal{$param}{param} = $params->{$param}{param};
+					$retVal{$param}{'param'} = $params->{$param}{param};
 				}
 			} else {
 				$dataValid = 0;
@@ -818,8 +826,8 @@ sub getEmptyEEpromMap ($) {
 sub getRawEEpromData($;$$$$) {
 	my ($hash, $start, $len, $hex, $littleEndian) = @_;
 	
-	my $hmwId   = $hash->{DEF};
-	my $devHash = $main::modules{HM485}{defptr}{substr($hmwId,0,8)};
+	my $hmwId   = $hash->{'DEF'};
+	my $devHash = $main::modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
 
 	my $blockLen = 16;
 	my $addrMax = 1024;
@@ -838,8 +846,8 @@ sub getRawEEpromData($;$$$$) {
 	my $retVal = '';
 	for ($blockCount = $blockStart; $blockCount < (ceil($addrMax / $blockLen)); $blockCount++) {
 		my $blockId = sprintf ('.eeprom_%04X' , ($blockCount * $blockLen));
-		if ($devHash->{READINGS}{$blockId}{VAL}) {
-			$retVal.= $devHash->{READINGS}{$blockId}{VAL};
+		if ($devHash->{'READINGS'}{$blockId}{VAL}) {
+			$retVal.= $devHash->{'READINGS'}{$blockId}{'VAL'};
 		} else {
 			$retVal = 'FF' x $blockLen;
 		}
@@ -855,7 +863,7 @@ sub getRawEEpromData($;$$$$) {
 	$retVal = $littleEndian ? reverse($retVal) : $retVal;
 	$retVal = $hex ? unpack('H*', $retVal) : $retVal;
 
-#print Dumper("+++++++ \n", unpack ('H*',$retVal), $start, $len, "\n -------");		
+#print Dumper("+++++++", unpack ('H*',$retVal), $start, $len, " -------");		
 	
 	return $retVal;
 }
@@ -979,7 +987,7 @@ sub parseForEepromData($;$$) {
 =cut
 sub getEEpromData($$) {
 	my ($paramHash, $params) = @_;
-	#print Dumper ("getEEpromData");
+	print Dumper ("getEEpromData");
 	
 	my $count = ($params->{count} && $params->{count} > 0) ? $params->{count} : 1; 
 	my $retVal;

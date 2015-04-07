@@ -30,6 +30,7 @@ sub makeConfigTable($$) {
 	my $name = $hash->{NAME};
 	my $content = '';
 	my $rowCount = 1;
+	#print Dumper("makeConfigTable",$configHash);
 	foreach my $cKey (sort keys %{$configHash}) {
 		my $config = $configHash->{$cKey};
 		my $rowContent.= wrapTd($cKey . ':');

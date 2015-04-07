@@ -701,7 +701,6 @@ sub HM485_SetConfig($@) {
 	my $msg = '';
 	if (@values > 1) {
 		# Split list of configurations
-		print Dumper ("SetConfig Split",@values);
 		my $cc = 0;
 		my $configType;
 		my $setConfigHash = {};
@@ -721,7 +720,6 @@ sub HM485_SetConfig($@) {
 		my $validatedConfig = {};
 		my $configHash = {};
 		if (scalar (keys %{$setConfigHash})) {
-			print Dumper("HM485_SetConfig setConfighash",$setConfigHash);
 			$configHash = HM485::ConfigurationManager::getConfigSettings($hash);
 			foreach my $setConfig (keys %{$setConfigHash}) {
 				my $configTypeHash = $configHash->{'parameter'}{$setConfig};
@@ -730,7 +728,7 @@ sub HM485_SetConfig($@) {
 				);
 				if (!$msg) {
 					$validatedConfig->{$setConfig}{'value'} = $setConfigHash->{$setConfig};
-					$validatedConfig->{$setConfig}{'config'} = $configHash->{$setConfig}; ##das stimmt noch nicht
+					$validatedConfig->{$setConfig}{'config'} = $configHash->{'parameter'}{$setConfig};
 				} else {
 					last;
 				}
@@ -738,13 +736,13 @@ sub HM485_SetConfig($@) {
 		}
 		
 		# If validation success
+		#print Dumper ("SetConfig",$validatedConfig);
 		if (!$msg) {
 			my $convertetSettings = HM485::ConfigurationManager::convertSettingsToEepromData(
 				$hash, $validatedConfig
 			);
-print Dumper("HM485_SetConfig",$validatedConfig);
 			if (scalar (keys %{$convertetSettings})) {
-			 	my $hmwId = $hash->{DEF};
+			 	my $hmwId = $hash->{'DEF'};
 
 				foreach my $adr (keys %{$convertetSettings}) {
 					HM485::Util::logger(
@@ -759,11 +757,11 @@ print Dumper("HM485_SetConfig",$validatedConfig);
 					$value    = sprintf ('%0' . ($size * 2) . 'X', $value);
 					$adr      = sprintf ('%04X' , $adr);
 
-print Dumper("HM485_SetConfig $adr: $value");
-	
-					HM485_SendCommand($hash, $hmwId, '57' . $adr . $size . $value);   # (W) write eeprom data
+    print Dumper("HM485_SetConfig $hmwId $adr: $size: $value");
+	#Trockenübung
+					##HM485_SendCommand($hash, $hmwId, '57' . $adr . $size . $value);   # (W) write eeprom data
 				}
-				HM485_SendCommand($hash, $hmwId, '43');                               # (C) reread config
+				##HM485_SendCommand($hash, $hmwId, '43');                               # (C) reread config
 			}
 		}
 	} else {
@@ -799,8 +797,8 @@ sub HM485_SetChannelState($$$) {
 
 			if ($cmd eq 'on' || $cmd eq 'off') {
 				my $control = $valueHash->{'control'} ? $valueHash->{'control'} : '';
-				if ($control eq 'switch.state' || $control eq 'dimmer.level') {
-					#Todo hat der blind.level ein on off ?
+				if ($control eq 'switch.state' || $control eq 'blind.level' || $control eq 'dimmer.level') {
+					
 					$frameValue = HM485::Device::onOffToState($valueHash, $cmd); ##OK
 					$value = $cmd;
 				} else {
@@ -841,7 +839,7 @@ sub HM485_SetChannelState($$$) {
 sub HM485_ValidateSettings($$$) {
 	my ($configHash, $cmdSet, $value) = @_;
 	my $msg = '';
-print Dumper ("ValidateSettings:$cmdSet->$value",$configHash);
+#print Dumper ("ValidateSettings:$cmdSet->$value",$configHash);
 	if (defined($value)) {
 		my $logical = $configHash->{'logical'};
 		if ($logical->{'type'}) {
@@ -865,11 +863,18 @@ print Dumper ("ValidateSettings:$cmdSet->$value",$configHash);
 				}
 
 			} elsif ($logical->{'type'} eq 'option') {
-				my @optionValues = HM485::ConfigurationManager::optionsToArray($logical->{'option'});
-				print Dumper ("ValidateSettings2",@optionValues,$logical->{'option'});
-#				my @optionValues = map {s/ //g; $_; } split(',', $logical->{option});
-				if ( !(grep $_ eq $value, @optionValues) ) {
-					$msg = 'must be on of: ' . join(', ', @optionValues);					
+				my $optionValues = HM485::ConfigurationManager::optionsToArray($logical->{'option'});
+				my $found = 0;
+				my @Values = map {s/ //g; $_; } split(',', $optionValues);
+				
+				foreach my $val (@Values) {
+					my ($item,$num) = split(':',$val);	
+					if ($num eq $value) {
+						$found = 1;
+					}				
+				}
+				if ($found eq '0') {
+					$msg = 'must be one of: ' . join(': ', $optionValues);					
 				} 
 			}
 		}

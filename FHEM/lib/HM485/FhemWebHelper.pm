@@ -38,10 +38,16 @@ sub makeConfigTable($$) {
 		my $value = '';
 		if ($config->{type} eq 'option') {
 			my $possibleValusList = HM485::ConfigurationManager::optionsToArray($config->{possibleValues});
+			#print Dumper ("makeConfigTable value:$config->{value} :option->",$config->{possibleValues},$possibleValusList);
+			#print Dumper ("makeConfigTable cKey $cKey value $config->{value}");
 			
 			$value = configSelect(
 				$cKey, $possibleValusList, $config->{value}
 			);
+			print Dumper ("makeConfigTable cKey $cKey");
+			###?????
+			#sleep 0.1;
+			
 		} elsif ($config->{type} eq 'boolean') {
 			$value = configSelect(
 				$cKey, 'no:0,yes:1', ($config->{value} ? 'yes' : 'no')

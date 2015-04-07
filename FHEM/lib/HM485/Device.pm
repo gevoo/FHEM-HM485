@@ -398,7 +398,7 @@ sub getValueFromEepromData($$$$;$) {
 		my $default;
 		my $data = HM485::Device::getRawEEpromData(
 			$hash, int($adrId), ceil($size), 0, $littleEndian 
-		); ###schon wieder ceil
+		);
 		
 		my $eepromValue = 0;
 		my $adrStart = (($adrId * 10) - (int($adrId) * 10)) / 10; #???????????
@@ -406,7 +406,6 @@ sub getValueFromEepromData($$$$;$) {
 		$size        = ($size < 1 && $wholeByte) ? 1 : $size;
 		
 		$eepromValue = getValueFromHexData($data, $adrStart, $size);
-		print Dumper ("getValueFromEepromData adrId: $adrId adrStart $adrStart eepromValue: $eepromValue" );
 		
 		if ($wholeByte == 0) {
 			$retVal = dataConversion($eepromValue, $configHash->{'conversion'}, 'from_device');

@@ -199,19 +199,17 @@ sub convertSettingsToEepromData($$) {
 		my ($adrId, $size, $littleEndian) = HM485::Device::getPhysicalAddress(
 			$hash, $configHash, $adressStart, $adressStep
 		);
-		#print Dumper ("convertSettingsToEepromData:pysicalAddress: $adrId, $size, $littleEndian");
+		
 		my $value = $configData->{$config}{'value'};
 		print Dumper ("convertSettingsToEepromData $config $value");
 		if ($configData->{$config}{config}{'logical'}{'type'} eq 'option') {
 			#$value = convertOptionToValue(
 			#	$configData->{$config}{'config'}{'logical'}{'option'}, $value
 			#);
-			print Dumper ("convertSettingsToEepromData: option :$value");
 		} else {
 			$value = HM485::Device::dataConversion(
 				$value, $configData->{$config}{'config'}{'conversion'}, 'to_device'
 			);
-			print Dumper ("convertSettingsToEepromData: conversion :$value");
 		}
 
 		my $adrKey = int($adrId);
@@ -228,32 +226,20 @@ sub convertSettingsToEepromData($$) {
 				$addressData->{$adrKey}{'value'} = $eepromValue;
 				$addressData->{$adrKey}{'text'} = '';
 				$addressData->{$adrKey}{'size'} = ceil($size); ## ceil warum ?
-				print Dumper ("Value not defined!!!! eepromvalue:",$eepromValue,$adrKey);
 			}
 
 			my $bit = ($adrId * 10) - ($adrKey * 10);
-			print Dumper ("Bit:$bit");
 			$addressData->{$adrKey}{'_adrId'} = $adrId;
 			$addressData->{$adrKey}{'_value_old'} = $addressData->{$adrKey}{'value'};
 			$addressData->{$adrKey}{'_value'} = $value;
-			print Dumper ("Teste:",$addressData->{$adrKey});
 
 			if ($value) { #value=1
-				print Dumper ("bitschupsenIF: value:$value");
-				my $bitMask = unpack ('C', pack 'c', ~(1 << $bit));
-				#my $bitMask = 1 << $bit;
-				$value = $value | $bitMask;
-				print Dumper ("bitschupsenIF: bitMask:$bitMask bit:$bit value:$value");
+				my $bitMask = 1 << $bit;
+				$value = $addressData->{$adrKey}{'value'} | $bitMask;
 			} else { #value=0
-				print Dumper ("bitschupsenEl: value:$value");
 				my $bitMask = unpack ('C', pack 'c', ~(1 << $bit));
-				#my $bitMask = 1 << $bit;
-				$value = $value | $bitMask;
-				print Dumper ("bitschupsenEl: bitMask:$bitMask bit:$bit value:$value");
+				$value = $addressData->{$adrKey}{'value'} & $bitMask;
 			}
-			
-			#print Dumper ("subBit:$value");
-
 			$addressData->{$adrKey}{'text'} .= ' ' . $config . '=' . $configData->{$config}{'value'}
 		}
 		

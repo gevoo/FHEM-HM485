@@ -285,7 +285,7 @@ our %definition = (
 								},
 								"physical" => {
 									"address" => {
-										"index" => 0.0
+										"index" => 0.1
 									},
 									"interface" => "eeprom",
 									"size" => 0.1,
@@ -304,7 +304,7 @@ our %definition = (
 								},
 								"physical" => {
 									"address" => {
-										"index" => 0.1
+										"index" => 0.0
 									},
 									"interface" => "eeprom",
 									"size" => 0.1,

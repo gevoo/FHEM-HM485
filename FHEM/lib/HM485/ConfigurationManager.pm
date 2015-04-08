@@ -83,7 +83,7 @@ sub optionsToArray($) {
 			#das geht bestimmt schöner! zuerst default suchen und danach nochmal alles wieder durchsuchen?
 			if (defined( $optionList->{$oKey}{default})) {
 				$default = $optionList->{$oKey}{default};
-				if ($default == '1') {
+				if ($default eq '1') {
 					$nodefault = 0;
 				} else {
 					$nodefault = 1;
@@ -118,7 +118,7 @@ sub convertOptionToValue($$) {
 		}
 		$i++;
 	}
-	print Dumper ("convertOptionToValue:$option <> $retVal");
+	#print Dumper ("convertOptionToValue:$option <> $retVal");
 	return $retVal;
 }
 
@@ -158,12 +158,11 @@ sub getConfigSettings($) {
 			}
 			if (ref($configSettings) eq 'HASH') {
 				# delete hidden configs
-				# Todo derzeit auskommentiert, wollte sehen was hier kommt.
-				#foreach my $config (keys $configSettings->{'parameter'}) {
-				#	if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
-				#		delete($configSettings->{'parameter'}{$config});
-				#	}
-				#}	
+				foreach my $config (keys $configSettings->{'parameter'}) {
+					if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
+						delete($configSettings->{'parameter'}{$config});
+					}
+				}	
 			}
 		}
 
@@ -201,8 +200,8 @@ sub convertSettingsToEepromData($$) {
 		);
 		
 		my $value = $configData->{$config}{'value'};
-		print Dumper ("convertSettingsToEepromData $config $value");
-		if ($configData->{$config}{config}{'logical'}{'type'} eq 'option') {
+		
+		if ($configData->{$config}{'config'}{'logical'}{'type'} eq 'option') {
 			#$value = convertOptionToValue(
 			#	$configData->{$config}{'config'}{'logical'}{'option'}, $value
 			#);
@@ -250,7 +249,6 @@ sub convertSettingsToEepromData($$) {
 		}
 
 		$addressData->{$adrKey}{'value'} = $value;
-#		$addressData->{$adrKey}{value} = $littleEndian ? reverse($addressData->{$adrKey}{value}) : $addressData->{$adrKey}{value};
 	}
 	#print Dumper ("convertSettingsToEepromData,",$addressData);
 	return $addressData;

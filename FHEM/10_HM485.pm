@@ -184,7 +184,7 @@ sub HM485_Define($$) {
 			} 
 
 		} else {
-			# We defined a the device
+			# We defined a device
 			AssignIoPort($hash);
 
 			HM485::Util::logger(
@@ -361,35 +361,32 @@ sub HM485_Set($@) {
 			$msg = 'Unknown argument ' . $cmd . ', choose one of ' . $arguments;
 
 		} else {
+						
+			if ($cmd eq 'press_long' || $cmd eq 'press_short') {
+				#Todo: Make ready
+				$msg = 'set ' . $name . ' ' . $cmd . ' key sym event not yet implemented';
 			
-			
-			#wir packen das setReadingsVal mal hier rein
-			#ich steh auf Rufzeichen
-			
-			if (!defined($value)) {
-				#$hash->{CHANGED}[0]            = $setval; ich weiss nich ob das gebraucht wird
+			} elsif ($cmd eq 'on' || $cmd eq 'off') {
+				
 				$hash->{STATE}                 = 'set_'.$cmd;
 				setReadingsVal($hash,'state','set_'.$cmd,TimeNow());
 				
+				$msg = HM485_SetChannelState($hash, $cmd, $value);	
+						
+			} elsif ($cmd eq 'config') {
+				$msg = HM485_SetConfig($hash, @params);
+
 			} else {
 				#$hash->{CHANGED}[0]            = $setval; ich weiss nich ob das gebraucht wird
 				$hash->{STATE}                 = 'set_'.$value;
 				$hash->{READINGS}{$cmd}{TIME} = TimeNow();
 				$hash->{READINGS}{$cmd}{VAL}  = 'set_'.$value;
 				setReadingsVal($hash,$cmd,'set_'.$value,TimeNow());
-			}
-						
-			if ($cmd eq 'press_long' || $cmd eq 'press_short') {
-				#Todo: Make ready
-				$msg = 'set ' . $name . ' ' . $cmd . ' key sym event not yet implemented'; 
-
-			} elsif ($cmd eq 'config') {
-				$msg = HM485_SetConfig($hash, @params);
-
-			} else {
+				
 				$msg = HM485_SetChannelState($hash, $cmd, $value);
-
 			}
+			
+			
 #			 elsif ($cmd eq 'level') {
 #				#Todo: Make ready
 #				my $chNr  = (length($hmwId) > 8) ? substr($hmwId, 9, 2) : undef;
@@ -757,11 +754,11 @@ sub HM485_SetConfig($@) {
 					$value    = sprintf ('%0' . ($size * 2) . 'X', $value);
 					$adr      = sprintf ('%04X' , $adr);
 
-    print Dumper("HM485_SetConfig $hmwId $adr: $size: $value");
-	#Trockenübung
-					##HM485_SendCommand($hash, $hmwId, '57' . $adr . $size . $value);   # (W) write eeprom data
+    #print Dumper("HM485_SetConfig $hmwId $adr: $size: $value");
+
+					HM485_SendCommand($hash, $hmwId, '57' . $adr . $size . $value);   # (W) write eeprom data
 				}
-				##HM485_SendCommand($hash, $hmwId, '43');                               # (C) reread config
+				HM485_SendCommand($hash, $hmwId, '43');                               # (C) reread config
 			}
 		}
 	} else {
@@ -1077,7 +1074,7 @@ sub HM485_SetAttributeFromResponse($$$) {
 =cut
 sub HM485_ProcessEvent($$) {
 	my ($ioHash, $msgData) = @_;
-	print Dumper ("ProcessEvent",$msgData);
+	#print Dumper ("ProcessEvent",$msgData);
 
 	my $hmwId = substr($msgData, 10,8);
 	$msgData  = (length($msgData) > 17) ? substr($msgData, 18) : '';;

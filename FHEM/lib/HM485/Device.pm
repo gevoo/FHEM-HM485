@@ -986,7 +986,7 @@ sub parseForEepromData($;$$) {
 =cut
 sub getEEpromData($$) {
 	my ($paramHash, $params) = @_;
-	print Dumper ("getEEpromData");
+	#print Dumper ("getEEpromData");
 	
 	my $count = ($params->{count} && $params->{count} > 0) ? $params->{count} : 1; 
 	my $retVal;

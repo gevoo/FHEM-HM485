@@ -30,31 +30,33 @@ sub makeConfigTable($$) {
 	my $name = $hash->{NAME};
 	my $content = '';
 	my $rowCount = 1;
-	#print Dumper("makeConfigTable",$configHash);
+	
 	foreach my $cKey (sort keys %{$configHash}) {
 		my $config = $configHash->{$cKey};
 		my $rowContent.= wrapTd($cKey . ':');
 		
 		my $value = '';
-		if ($config->{type} eq 'option') {
-			my $possibleValusList = HM485::ConfigurationManager::optionsToArray($config->{possibleValues});
-			#print Dumper ("makeConfigTable value:$config->{value} :option->",$config->{possibleValues},$possibleValusList);
-			#print Dumper ("makeConfigTable cKey $cKey value $config->{value}");
-			
+		if ($config->{'type'} eq 'option') {
+			my $possibleValusList = HM485::ConfigurationManager::optionsToArray($config->{'possibleValues'});
 			$value = configSelect(
-				$cKey, $possibleValusList, $config->{value}
+				$cKey, $possibleValusList, $config->{'value'}
 			);
-			print Dumper ("makeConfigTable cKey $cKey");
-			###?????
-			#sleep 0.1;
 			
-		} elsif ($config->{type} eq 'boolean') {
+		} elsif ($config->{'type'} eq 'boolean') {
 			$value = configSelect(
-				$cKey, 'no:0,yes:1', ($config->{value} ? 'yes' : 'no')
+				$cKey, 'no:0,yes:1', $config->{'value'}
 			);
 		} else {
+			my $cSize = $config->{physical}{size};;
+			if ($config->{type} eq 'float') {
+				$cSize = $cSize + 2;
+				$config->{value} = sprintf('%.1f',$config->{value});
+			} elsif ($config->{type} eq 'integer') {
+				$cSize = $cSize * 2;
+			}
+			
 			$value = configInput(
-				$cKey, $config->{value}, $config->{min}, $config->{max}
+				$cKey, $config->{value}, $config->{min}, $config->{max}, $cSize
 			);
 		}
 		
@@ -76,7 +78,7 @@ sub makeConfigTable($$) {
 		);
 	}
 	
-	my $title = 'Configuration not Ready';
+	my $title = 'Configuration';
 	my $className = lc($title);
 	$className =~ s/[^A-Za-z]/_/g;
 
@@ -87,11 +89,12 @@ sub makeConfigTable($$) {
 	return $content;
 }
 
-sub configInput($$;$$) {
-	my ($name, $value, $min, $max) = @_;
-
-	my $content = '<input onchange="FW_HM485setChange(this)" type="text" size="3" name="' . $name . '" value="' . 
-	               $value . '" class="arg.HM485.config">';
+sub configInput($$;$$$) {
+	my ($name, $value, $min, $max, $size) = @_;
+	
+	my $cSize = ($size ? $size : '3');
+	my $content = '<input onchange="FW_HM485setChange(this)" type="text" size="'.$cSize.'" name="' . $name . '" value="' . 
+	               $value . '" class="arg.HM485.config" style="text-align:right;" />';
 
 	return $content;
 }
@@ -112,20 +115,17 @@ sub configSelect($$$) {
 	my @posibleValuesArray = split(',', $posibleValues);
 
 	# Trim all items in the array
-	@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
+	#@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
 	
-	my $cc = 0;
 	foreach my $oKey (@posibleValuesArray) {
 		my ($optionName, $optionValue) = split(':', $oKey);
-
-		$optionValue = defined($optionValue) ? $optionValue : $optionName;
 		my $selected = '';
-		if ($optionName eq $value || $cc eq $value) {
+		
+		if ($value eq $optionValue) {
 			$selected = ' selected="selected"';
 		}
 
 		$options.= '<option value="' . $optionValue . '"' . $selected . '>' . $optionName . '</option>';
-		$cc++;
 	}
 	
 	$content.= $options . '</select>';

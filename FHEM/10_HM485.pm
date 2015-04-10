@@ -29,6 +29,7 @@ use lib::HM485::Device;
 use lib::HM485::Util;
 use lib::HM485::FhemWebHelper;
 use lib::HM485::ConfigurationManager;
+use lib::HM485::PeeringManager;
 #use lib::HM485::Command;
 
 use Scalar::Util qw(looks_like_number);
@@ -204,7 +205,6 @@ sub HM485_Define($$) {
 					);
 
 					HM485_GetInfos($hash, $hmwId, 0b111);
-	#Todo Enable Config--	HM485_GetConfig($hash, $addr);
 					HM485_GetConfig($hash, $addr);
 					
 				} else {
@@ -375,6 +375,8 @@ sub HM485_Set($@) {
 						
 			} elsif ($cmd eq 'config') {
 				$msg = HM485_SetConfig($hash, @params);
+				print Dumper (@params);
+				
 
 			} else {
 				#$hash->{CHANGED}[0]            = $setval; ich weiss nich ob das gebraucht wird
@@ -541,7 +543,8 @@ sub HM485_FhemwebShowConfig($$$) {
 	my $configHash = HM485::ConfigurationManager::getConfigFromDevice($hash, $chNr);
 
 	# Todo: make ready
-	my $peerHash = $hash->{'peerings'};
+	#my $peerHash = $hash->{'peerings'};
+	my $peerHash = HM485::PeeringManager::getPeeringFromDevice($hash, $chNr);
 
 	my $content = HM485::FhemWebHelper::showConfig($hash, $configHash, $peerHash);
 
@@ -761,6 +764,10 @@ sub HM485_SetConfig($@) {
 				HM485_SendCommand($hash, $hmwId, '43');                               # (C) reread config
 			}
 		}
+	
+	
+	
+	
 	} else {
 		$msg = '"set config needs 2 more parameter';
 	}

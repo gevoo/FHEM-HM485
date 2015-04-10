@@ -262,7 +262,7 @@ sub getHmwIdAndChNrFromHash($) {
 	#Todo There is a funktion which sends a emty hash to this funktion
 
 	if (ref $hash eq 'HASH') {
-		my $hmwId = $hash->{DEF};
+		my $hmwId = $hash->{'DEF'};
 		my $chNr   = (length($hmwId) > 8) ? substr($hmwId, 9, 2) : 0;
 		return ($hmwId, $chNr);
 	}

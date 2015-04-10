@@ -391,7 +391,9 @@ sub getValueFromEepromData($$$$;$) {
 	
 	$wholeByte = $wholeByte ? 1 : 0;
 	#my $adressStep = $configHash->{address_step} ? $configHash->{address_step}  : 1;
+		
 	my ($adrId, $size, $littleEndian) = getPhysicalAddress($hash, $configHash, $adressStart, $adressStep);
+	
 	
 	my $retVal = '';
 	if (defined($adrId)) {
@@ -399,13 +401,18 @@ sub getValueFromEepromData($$$$;$) {
 		my $data = HM485::Device::getRawEEpromData(
 			$hash, int($adrId), ceil($size), 0, $littleEndian 
 		);
-		
+		#print Dumper ("getValueFromEepromData:getRawEEpromData",$data);
 		my $eepromValue = 0;
-		my $adrStart = (($adrId * 10) - (int($adrId) * 10)) / 10; #???????????
+		
+		my $adrStart = (($adrId * 10) - (int($adrId) * 10)) / 10;
 		$adrStart    = ($adrStart < 1 && !$wholeByte) ? $adrStart: 0;
 		$size        = ($size < 1 && $wholeByte) ? 1 : $size;
 		
 		$eepromValue = getValueFromHexData($data, $adrStart, $size);
+		#debug
+		my $dbg = sprintf("0x%X",$adrId);
+		my $eep = sprintf("0x%X",$eepromValue);
+		#print Dumper ("getValueFromEepromDatahexdata:$adrStart, $dbg, $size, $littleEndian, $eep");
 		
 		if ($wholeByte == 0) {
 			$retVal = dataConversion($eepromValue, $configHash->{'conversion'}, 'from_device');
@@ -421,7 +428,7 @@ sub getValueFromEepromData($$$$;$) {
 			} elsif ($size == 2) {
 				$retVal = ($eepromValue != 0xFFFF) ? $retVal : $default;
 			} elsif ($size == 4) {
-				$retVal = ($eepromValue != 0xFFFFFFFF) ? $retVal : $default;
+				$retVal = ($eepromValue != 0x00FFFFFF) ? $retVal : $default; ##malsehen
 			}
 		}
 	}
@@ -433,6 +440,7 @@ sub getPhysicalAddress($$$$) {
 		
 	my $adrId = 0;
 	my $size  = 0;
+	my $littleEndian = 0;
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 	my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
@@ -442,7 +450,9 @@ sub getPhysicalAddress($$$$) {
 	my $chId = int($chNr) - $chConfig->{'index'}; ##OK
 
 	# we must check if special params exists.
-	# Then address_id and step retreve from special params 
+	# Then address_id and step retreve from special params
+	# There exists also Address Arrays
+	
 	if (exists $configHash->{'physical'}{'address'}{'index'}){
 		my $valId        = $configHash->{'physical'}{'address'}{'index'};
 		my $spConfig     = $chConfig->{'special_param'}{$valId};
@@ -456,9 +466,8 @@ sub getPhysicalAddress($$$$) {
 			$adrId      = $configHash->{'physical'}{'address'}{'index'} ? $configHash->{'physical'}{'address'}{'index'} : 0;
 			$adrId      = $adrId + $adressStart + ($chId * $adressStep);
 		}
+		$littleEndian = ($configHash->{'physical'}{'endian'} && $configHash->{'physical'}{'endian'} eq 'little') ? 1 : 0;
 	}
-	my $littleEndian = ($configHash->{'physical'}{'endian'} && $configHash->{'physical'}{'endian'} eq 'little') ? 1 : 0;
-	#if ($size <= 0.9) {$littleEndian = 0;} #bitfields are endian ?????????????
 	return ($adrId, $size, $littleEndian);
 }
 
@@ -496,6 +505,8 @@ sub translateFrameDataToValue($$) {
 
 sub getValueFromHexData($;$$) {
 	my ($data, $start, $size) = @_;
+	my $dbg = unpack ('H*',$data);
+	#print Dumper ("getValueFromHexData",$data,$start,$size,$dbg);
 
 	$start = $start ? $start : 0;
 	$size  = $size ? $size : 1;
@@ -503,13 +514,16 @@ sub getValueFromHexData($;$$) {
 	my $retVal;
 
 	if (isInt($start) && $size >=1) {
-		$retVal = hex(unpack ('H*', substr($data, $start, $size)));
+		#my $test = substr($data, $start, $size);
+		#print Dumper ("getValueFromHexDatau:npack",$test);
+		$retVal = hex(unpack ('H*', substr($data, $start, $size))); ##das funktioniert nicht richtig ?? bei size 4
 	} else {
 		my $bitsId = ($start - int($start)) * 10;
 		my $bitsSize  = ($size - int($size)) * 10;
 		$retVal = ord(substr($data, int($start), 1));
 		$retVal = subBit($retVal, $bitsId, $bitsSize);
 	}
+	#print Dumper ("getValueFromHexData",$retVal);
 
 	return $retVal;
 }
@@ -560,7 +574,7 @@ sub valueToControl($$) {
 			$threshold = $threshold ? int($threshold) : 1;
 			$retVal = ($value > $threshold) ? 'on' : 'off';
 
-		} elsif ($control eq 'dimmer.level') {
+		} elsif ($control eq 'dimmer.level' || $control eq 'blind.level') {
 			#Todo es gibt auch noch einen blind level hat der auch einen faktor oder den gleichen ?
 			##Ich hoffe der multiplicator gehört hierher
 			$retVal = $value * 100;
@@ -824,6 +838,7 @@ sub getEmptyEEpromMap ($) {
 =cut
 sub getRawEEpromData($;$$$$) {
 	my ($hash, $start, $len, $hex, $littleEndian) = @_;
+	#print Dumper ("getRawEEpromData $start $len",$hash);
 	
 	my $hmwId   = $hash->{'DEF'};
 	my $devHash = $main::modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};

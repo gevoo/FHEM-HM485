@@ -229,7 +229,7 @@ our %definition = (
 									"type" => "address"
 								},
 								"operations" => "none",
-								"physical" => [
+								"physical" => {
 								{
 									"address" => {
 										"index" => 1
@@ -246,7 +246,7 @@ our %definition = (
 									"size" => 1.0,
 									"type" => "integer"
 								}
-								]
+								}
 							},
 							"channel" => {
 								"hidden" => true,
@@ -843,7 +843,7 @@ our %definition = (
 									"type" => "address"
 								},
 								"operations" => "none",
-								"physical" => [
+								"physical" => {
 								{
 									"address" => {
 										"index" => 0
@@ -860,7 +860,7 @@ our %definition = (
 									"size" => 1.0,
 									"type" => "integer"
 								}
-								]
+								}
 							},
 							"short_action_type" => {
 								"logical" => {

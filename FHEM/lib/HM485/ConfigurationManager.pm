@@ -26,42 +26,43 @@ sub getConfigFromDevice($$) {
 	if (ref($configHash) eq 'HASH') {
 		my $adressStart = $configHash->{'address_start'} ? $configHash->{'address_start'} : 0;
 		my $adressStep = $configHash->{'address_step'} ? $configHash->{'address_step'} : 0; #Todo oder lieber 1
-		
-		foreach my $config (keys $configHash->{'parameter'}) {
-			my $dataConfig = $configHash->{'parameter'}{$config};
-			if (ref($dataConfig) eq 'HASH') {
-				my $type  = $dataConfig->{'logical'}{'type'} ? $dataConfig->{'logical'}{'type'} : undef;
-				my $unit  = $dataConfig->{'logical'}{'unit'} ? $dataConfig->{'logical'}{'unit'} : '';
-				my $min   = defined($dataConfig->{'logical'}{'min'})  ? $dataConfig->{'logical'}{'min'}  : undef;
-				my $max   = defined($dataConfig->{'logical'}{'max'})  ? $dataConfig->{'logical'}{'max'}  : undef;
+		if (ref($configHash->{'parameter'}) eq 'HASH') {
+			foreach my $config (keys $configHash->{'parameter'}) {
+				my $dataConfig = $configHash->{'parameter'}{$config};
+				if (ref($dataConfig) eq 'HASH') {
+					my $type  = $dataConfig->{'logical'}{'type'} ? $dataConfig->{'logical'}{'type'} : undef;
+					my $unit  = $dataConfig->{'logical'}{'unit'} ? $dataConfig->{'logical'}{'unit'} : '';
+					my $min   = defined($dataConfig->{'logical'}{'min'})  ? $dataConfig->{'logical'}{'min'}  : undef;
+					my $max   = defined($dataConfig->{'logical'}{'max'})  ? $dataConfig->{'logical'}{'max'}  : undef;
 
-				$retVal->{$config}{'type'}  = $type;
-				$retVal->{$config}{'unit'}  = $unit;
+					$retVal->{$config}{'type'}  = $type;
+					$retVal->{$config}{'unit'}  = $unit;
 
-				$retVal->{$config}{'value'} = HM485::Device::getValueFromEepromData (
-					$hash, $dataConfig, $adressStart, $adressStep
-				);
+					$retVal->{$config}{'value'} = HM485::Device::getValueFromEepromData (
+						$hash, $dataConfig, $adressStart, $adressStep
+					);
 
-				### debug	
-				#my $adressStep = $configHash->{'address_step'} ? $configHash->{'address_step'} : 1;
-				my ($adrId, $size) = HM485::Device::getPhysicalAddress(
-					$hash, $dataConfig, $adressStart, $adressStep
-				);
+					### debug	
+					#my $adressStep = $configHash->{'address_step'} ? $configHash->{'address_step'} : 1;
+					my ($adrId, $size) = HM485::Device::getPhysicalAddress(
+						$hash, $dataConfig, $adressStart, $adressStep
+					);
 
-				$retVal->{$config}{'physical'} = $dataConfig->{'parameter'}{'physical'};
-				$retVal->{$config}{'physical'}{'address'}{'index'} = $adrId;
-				$retVal->{$config}{'physical'}{'size'} = $size;
-				$retVal->{$config}{'physical'}{'address_start'} = $adressStart;
-				$retVal->{$config}{'physical'}{'address_step'} = $adressStep;
-				###
+					$retVal->{$config}{'physical'} = $dataConfig->{'parameter'}{'physical'};
+					$retVal->{$config}{'physical'}{'address'}{'index'} = $adrId;
+					$retVal->{$config}{'physical'}{'size'} = $size;
+					$retVal->{$config}{'physical'}{'address_start'} = $adressStart;
+					$retVal->{$config}{'physical'}{'address_step'} = $adressStep;
+					###
 				
-				if ($type && $type ne 'option') {
-					#todo da gibts noch mehr: boolean
-					#print Dumper ($dataConfig->{'logical'}{'type'});
-					$retVal->{$config}{'logical'}{'min'} = $min;
-					$retVal->{$config}{'logical'}{'max'} = $max;
-				} else {
-					$retVal->{$config}{'possibleValues'} = $dataConfig->{'logical'}{'option'};
+					if ($type && $type ne 'option') {
+						#todo da gibts noch mehr: boolean
+						#print Dumper ($dataConfig->{'logical'}{'type'});
+						$retVal->{$config}{'logical'}{'min'} = $min;
+						$retVal->{$config}{'logical'}{'max'} = $max;
+					} else {
+						$retVal->{$config}{'possibleValues'} = $dataConfig->{'logical'}{'option'};
+					}
 				}
 			}
 		}
@@ -166,11 +167,11 @@ sub getConfigSettings($) {
 				}
 				
 				# delete hidden configs
-				#foreach my $config (keys $configSettings->{'parameter'}) {
-				#	if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
-				#		delete($configSettings->{'parameter'}{$config});
-				#	}
-				#}	
+				foreach my $config (keys $configSettings->{'parameter'}) {
+					if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
+						delete($configSettings->{'parameter'}{$config});
+					}
+				}	
 			}
 		}
 

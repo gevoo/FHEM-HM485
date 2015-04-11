@@ -21,23 +21,27 @@ our %definition = (
 		},
 		'paramset' => 	{
 			"enforce" => {
-				"id" => "central_address",
-				"value" => 1
+				"central_address" => {
+					"id" => "central_address",
+					"value" => 1
+				}
 			},
 			"id" => "hmw-io-12-sw14-dr_dev_master",
 			"parameter" => {
-				"hidden" => true,
-				"id" => "central_address",
-				"logical" => {
-					"type" => "integer"
-				},
-				"physical" => {
-					"address" => {
-						"index" => 0x0002
+				"central_address" => {
+					"hidden" => true,
+					"id" => "central_address",
+					"logical" => {
+						"type" => "integer"
 					},
-					"interface" => "eeprom",
-					"size" => 4,
-					"type" => "integer"
+					"physical" => {
+						"address" => {
+							"index" => 0x0002
+						},
+						"interface" => "eeprom",
+						"size" => 4,
+						"type" => "integer"
+					}
 				}
 			},
 			"type" => "master"
@@ -145,28 +149,30 @@ our %definition = (
 					},
 					"values" => {
 						"parameter" => {
-							"conversion" => {
-								"factor" => 1,
-								"type" => "float_integer_scale"
-							},
-							"id" => "value",
-							"logical" => {
-								"max" => 1000,
-								"min" => 0,
-								"type" => "float"
-							},
-							"operations" => "read,event",
-							"physical" => {
-								"event" => {
-									"frame" => "info_level"
+							"value" => {
+								"conversion" => {
+									"factor" => 1,
+									"type" => "float_integer_scale"
 								},
-								"get" => {
-									"request" => "level_get",
-									"response" => "info_level"
+								"id" => "value",
+								"logical" => {
+									"max" => 1000,
+									"min" => 0,
+									"type" => "float"
 								},
-								"interface" => "command",
-								"type" => "integer",
-								"value_id" => "state"
+								"operations" => "read,event",
+								"physical" => {
+									"event" => {
+										"frame" => "info_level"
+									},
+									"get" => {
+										"request" => "level_get",
+										"response" => "info_level"
+									},
+									"interface" => "command",
+									"type" => "integer",
+									"value_id" => "state"
+								}
 							}
 						},
 						"type" => "values"
@@ -418,22 +424,24 @@ our %definition = (
 					"link" => {},
 					"master" => {
 						"parameter" => {
-							"id" => "behaviour",
-							"logical" => {
-								"option" => {
-									"digital_input" => {
-										"default" => true
+							"behaviour" => {
+								"id" => "behaviour",
+								"logical" => {
+									"option" => {
+										"digital_input" => {
+											"default" => true
+										},
+										"frequency_input" => {}
 									},
-									"frequency_input" => {}
+									"type" => "option"
 								},
-								"type" => "option"
-							},
-							"physical" => {
-								"interface" => "internal",
-								"type" => "integer",
-								"value_id" => "behaviour"
-							},
-							"ui_flags" => "transform"
+								"physical" => {
+									"interface" => "internal",
+									"type" => "integer",
+									"value_id" => "behaviour"
+								},
+								"ui_flags" => "transform"
+							}
 						},
 						"type" => "master"
 					},

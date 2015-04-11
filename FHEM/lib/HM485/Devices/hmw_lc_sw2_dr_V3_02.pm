@@ -229,7 +229,7 @@ our %definition = (
 									"type" => "address"
 								},
 								"operations" => "none",
-								"physical" => {
+								"physical" => [
 								{
 									"address" => {
 										"index" => 1
@@ -246,7 +246,7 @@ our %definition = (
 									"size" => 1.0,
 									"type" => "integer"
 								}
-								}
+								]
 							},
 							"channel" => {
 								"hidden" => true,
@@ -843,7 +843,7 @@ our %definition = (
 									"type" => "address"
 								},
 								"operations" => "none",
-								"physical" => {
+								"physical" => [
 								{
 									"address" => {
 										"index" => 0
@@ -860,7 +860,7 @@ our %definition = (
 									"size" => 1.0,
 									"type" => "integer"
 								}
-								}
+								]
 							},
 							"short_action_type" => {
 								"logical" => {
@@ -1219,23 +1219,25 @@ our %definition = (
 						"address_start" => 0x0B,
 						"address_step" => 2,
 						"parameter" => {
-							"id" => "logging",
-							"logical" => {
-								"option" => {
-									"off" => {},
-									"on" => {
-										"default" => true
-									}
+							"logging" => {
+								"id" => "logging",
+								"logical" => {
+									"option" => {
+										"off" => {},
+										"on" => {
+											"default" => true
+										}
+									},
+									"type" => "option"
 								},
-								"type" => "option"
-							},
-							"physical" => {
-								"address" => {
-									"index" => 0
-								},
-								"interface" => "eeprom",
-								"size" => 0.1,
-								"type" => "integer"
+								"physical" => {
+									"address" => {
+										"index" => 0
+									},
+									"interface" => "eeprom",
+									"size" => 0.1,
+									"type" => "integer"
+								}
 							}
 						},
 						"type" => "master"

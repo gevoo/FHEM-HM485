@@ -29,7 +29,7 @@ use lib::HM485::Device;
 use lib::HM485::Util;
 use lib::HM485::FhemWebHelper;
 use lib::HM485::ConfigurationManager;
-use lib::HM485::PeeringManager;
+#use lib::HM485::PeeringManager;
 #use lib::HM485::Command;
 
 use Scalar::Util qw(looks_like_number);
@@ -206,7 +206,6 @@ sub HM485_Define($$) {
 
 					HM485_GetInfos($hash, $hmwId, 0b111);
 					HM485_GetConfig($hash, $addr);
-					
 				} else {
 					# Todo: Maybe we must queue "auto get info" if IODev not opened yet 
 				}
@@ -543,8 +542,8 @@ sub HM485_FhemwebShowConfig($$$) {
 	my $configHash = HM485::ConfigurationManager::getConfigFromDevice($hash, $chNr);
 
 	# Todo: make ready
-	#my $peerHash = $hash->{'peerings'};
-	my $peerHash = HM485::PeeringManager::getPeeringFromDevice($hash, $chNr);
+	my $peerHash = $hash->{'peerings'};
+	#my $peerHash = HM485::PeeringManager::getPeeringFromDevice($hash, $chNr);
 
 	my $content = HM485::FhemWebHelper::showConfig($hash, $configHash, $peerHash);
 
@@ -594,17 +593,16 @@ sub HM485_GetInfos($$$) {
 =cut
 sub HM485_GetState($$) {
 	my ($hash, $hmwId) = @_;
-	
-	my $chId  = substr($hmwId,9,2) -1;
+	#getState on main Device has no channelId
 	my $channel;
-	if ($chId == -1) {
-		$channel = sprintf ('%02X',0);
-	} else {
+	if (length($hmwId) > 10) {
+		my $chId  = substr($hmwId,9,2) -1;
 		$channel = sprintf ('%02X' , $chId);
+	} else {
+		$channel = sprintf ('%02X',0);
 	}
-	#print Dumper ("GetState",$channel,$chId);
 	
-	#Todo Parse for "level_get type = 0x53"
+	#Todo Parse for "level_get type = 0x53 im device xml"
 
 	HM485::Util::logger(
 		HM485::LOGTAG_HM485, 3, 'Request state for device ' . substr($hmwId,0,8)
@@ -940,8 +938,6 @@ sub HM485_ProcessResponse($$$) {
 		my $requestData = $ioHash->{'.waitForResponse'}{$msgId}{'requestData'};
 		my $hash        = $modules{'HM485'}{'defptr'}{$hmwId};
 
-
-		#print Dumper ("ProcessResponse",$msgData);
 		# Check if main device exists or we need create it
 		if($hash->{'DEF'} && $hash->{'DEF'} eq $hmwId) {
 	

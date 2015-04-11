@@ -1539,7 +1539,7 @@ our %definition = (
 						"address_start" => 0x0B,
 						"address_step" => 1,
 						"parameter" => {
-							"logging" => {
+							"id" => "logging",
 							"logical" => {
 								"option" => {
 									"off" => {},
@@ -1556,8 +1556,7 @@ our %definition = (
 								"interface" => "eeprom",
 								"size" => 0.1,
 								"type" => "integer"
-							},
-							},
+							}
 						},
 						"type" => "master"
 					},

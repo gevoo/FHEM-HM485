@@ -108,16 +108,16 @@ sub configInput($$;$$$) {
 	@param	string	the value for specific item sould selected
 =cut
 sub configSelect($$$) {
-	my ($name, $posibleValues, $value) = @_;
+	my ($name, $possibleValues, $value) = @_;
 	
 	my $content = '<select onchange="FW_HM485setChange(this)" name="' . $name . '" class="arg.HM485.config">';
 	my $options = '';
-	my @posibleValuesArray = split(',', $posibleValues);
+	my @possibleValuesArray = split(',', $possibleValues);
 
 	# Trim all items in the array
 	#@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
 	
-	foreach my $oKey (@posibleValuesArray) {
+	foreach my $oKey (@possibleValuesArray) {
 		my ($optionName, $optionValue) = split(':', $oKey);
 		my $selected = '';
 		

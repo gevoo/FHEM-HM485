@@ -18,6 +18,7 @@ use Data::Dumper;
 sub getConfigFromDevice($$) {
 	my ($hash, $chNr) = @_;
 	#Todo wird 2 mal aufgerufen suchen von wo und warum
+	
 
 	my $retVal = {};
 	my $configHash = getConfigSettings($hash);
@@ -157,12 +158,19 @@ sub getConfigSettings($) {
 				);
 			}
 			if (ref($configSettings) eq 'HASH') {
+				#print Dumper ("getConfigSettings vor convertIdToHash:",$configSettings);
+				if (exists $configSettings->{'parameter'}{'id'}) {
+					#rewrite Config ID
+					$configSettings->{'parameter'} = convertIdToHash($configSettings->{'parameter'});
+				#	print Dumper ("getConfigSettings:convertIdToHash",$configSettings);
+				}
+				
 				# delete hidden configs
-				foreach my $config (keys $configSettings->{'parameter'}) {
-					if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
-						delete($configSettings->{'parameter'}{$config});
-					}
-				}	
+				#foreach my $config (keys $configSettings->{'parameter'}) {
+				#	if (ref($configSettings->{'parameter'}{$config}) eq 'HASH' && $configSettings->{'parameter'}{$config}{'hidden'}) {
+				#		delete($configSettings->{'parameter'}{$config});
+				#	}
+				#}	
 			}
 		}
 
@@ -171,6 +179,18 @@ sub getConfigSettings($) {
 	return $configSettings;
 }
 
+sub convertIdToHash($) {
+	my ($configSettings) = @_;
+	
+	my $ConvertHash = {};
+	my $id = $configSettings->{'id'};
+	
+	if ($id) {
+		$ConvertHash->{$id} = $configSettings;
+		#delete $ConvertHash->{$id}{'id'}; wenn ich die id lösche gehts nimmer Warum?
+	}
+	return $ConvertHash;
+}
 
 sub convertSettingsToEepromData($$) {
 	my ($hash, $configData) = @_;

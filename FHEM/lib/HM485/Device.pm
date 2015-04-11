@@ -196,28 +196,32 @@ sub getChannelBehaviour($) {
 
 	if (defined($chNr)) {
 		my $deviceKey = getDeviceKeyFromHash($hash);
-
+		
 		if ($deviceKey) {
-			my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
+			my $chType = HM485::Device::getChannelType($deviceKey, $chNr); #key
+			
 			my $channelConfig  = getValueFromDefinitions(
 				$deviceKey . '/channels/' . $chType
-			);	
+			);
+			
 			if ($channelConfig->{'special_parameter'}{'id'} &&
 			   ($channelConfig->{'special_parameter'}{'id'} eq 'behaviour') &&
 			    $channelConfig->{'special_parameter'}{'physical'}{'address'}{'index'}) {
-
-				my $chConfig = HM485::ConfigurationManager::getConfigFromDevice(
-					$hash, $chNr
-				);
-
-				my @possibleValuesArray = split(',', $chConfig->{'behaviour'}{'possibleValues'});
-			
-				# Trim all items in the array
-				@possibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @possibleValuesArray);
-
-				my $value = $chConfig->{'behaviour'}{'value'};
+					my $chConfig = HM485::ConfigurationManager::getConfigFromDevice(
+						$hash, $chNr
+					);
 				
-				$retVal = $possibleValuesArray[$value];
+				my $possibleValues = HM485::ConfigurationManager::optionsToArray($chConfig->{'behaviour'}{'possibleValues'});
+				my @possibleValuesArray = split(',', $possibleValues); ###Todo kein arrray sondern string
+				my $value = $chConfig->{'behaviour'}{'value'};	
+				# Trim all items in the array
+				foreach my $item (@possibleValuesArray) {
+					my ($command, my $num) = split(':', $item);
+					if ($value eq $num) {
+						$retVal = $command;
+						last;
+					}
+				}
 			}
 		}
 	}
@@ -238,6 +242,8 @@ sub getChannelBehaviour($) {
 	Args 		: nothing
 =cut
 sub getHwTypeList() {
+	print Dumper ("getHwTypeList");
+	#Todo die; ich glaub das wird nicht mehr verwendet
 	return join(',', sort keys %models);
 }
 
@@ -346,6 +352,7 @@ sub parseFrameData($$$) {
 =cut
 sub getFrameInfos($$;$$) {
 	my ($deviceKey, $data, $event, $dir) = @_;
+	
 		
 	my $frameType = hex(substr($data, 0,2));
 	my %retVal;
@@ -353,6 +360,13 @@ sub getFrameInfos($$;$$) {
 	my $frames = getValueFromDefinitions($deviceKey . '/frames/');
 	if ($frames) {
 		foreach my $frame (keys %{$frames}) {
+			if ($frames->{$frame}{'parameter'}{'index'}) {
+				#we rewrite the new configuration to the old one
+				my $replace = convertFrameIndexToHash ($frames->{$frame}{'parameter'});
+				delete ($frames->{$frame}{'parameter'});
+				$frames->{$frame}{'parameter'} = $replace;
+			}
+			
 			my $fType  = $frames->{$frame}{'type'};
 			my $fEvent = $frames->{$frame}{'event'} ? $frames->{$frame}{'event'} : 0;
 			my $fDir   = $frames->{$frame}{'direction'} ? $frames->{$frame}{'direction'} : 0;
@@ -369,6 +383,7 @@ sub getFrameInfos($$;$$) {
 						delete $parameter->{$replace}{'param'};
 					}
 				}
+
 				if (defined($parameter)) {
 					%retVal = (
 						ch     => sprintf ('%02d' , hex(substr($data, $chField, 2)) + 1),
@@ -384,6 +399,20 @@ sub getFrameInfos($$;$$) {
 	}
 	
 	return \%retVal;
+}
+
+sub convertFrameIndexToHash($) {
+	my ($configSettings) = @_;
+	
+	my $ConvertHash = {};
+	my $index = sprintf("%.1f",$configSettings->{'index'});
+	
+	if ($index) {
+		$ConvertHash->{$index} = $configSettings;
+		delete $ConvertHash->{$index}{'index'};
+	}
+	
+	return $ConvertHash;
 }
 
 sub getValueFromEepromData($$$$;$) {
@@ -716,9 +745,7 @@ sub dataConversion($$;$) {
 				$retVal = int($retVal * $factor); 
 			} else {
 #				$retVal = $retVal / $factor;
-				if ($retVal eq "off" || $retVal eq "on") {
-					#Todo umkehren
-				} else {
+				if ($retVal ne "off" || $retVal ne "on") {
 					$retVal = sprintf("%.2f", $retVal / $factor);
 					$retVal = $retVal - $offset;
 				}
@@ -754,19 +781,22 @@ sub dataConversion($$;$) {
 sub getChannelValueMap($$$$) {
 	my ($hash, $deviceKey, $frameData, $valId) = @_;
 	
-	my $channel = $frameData->{'ch'};
-	my $chType = getChannelType($deviceKey, $channel);
+	my $channel = $frameData->{'ch'}; #01
+	my $chType = getChannelType($deviceKey, $channel); #digital_output
 
 	my $hmwId = $hash->{'DEF'}; 
 	my $chHash = $main::modules{'HM485'}{'defptr'}{$hmwId . '_' . $channel};
 
 	my $values;
-	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash);
+	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash); #analog_output
 
 # Todo: Check $channelBehaviour and $valuePrafix
-#	my $valuePrafix = $channelBehaviour ? '.' . $channelBehaviour : '';
-	my $valuePrafix = '';
-
+	if ($channelBehaviour) {
+		print Dumper ("getChannelValueMap channelbehaviour",$channelBehaviour);
+	}
+#	my $valuePrafix = $channelBehaviour ? '.' . $channelBehaviour : ''; ###digital_analog_output
+	my $valuePrafix = '';    #hmw_analog_output_values
+	#$values  = getValueFromDefinitions( $deviceKey . '/channels/' . $chType . '/subconfig/paramset/');
 	$values  = getValueFromDefinitions(
 		$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
 	);
@@ -784,13 +814,11 @@ sub getChannelValueMap($$$$) {
 			}
 		}
 	}
-	
 	return $retVal;
 }
 
 sub getEmptyEEpromMap ($) {
 	my ($hash) = @_;
-	#print Dumper ("getEmptyEEpromMap");
 
 	my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 	my $eepromAddrs = parseForEepromData(getValueFromDefinitions($deviceKey));
@@ -838,7 +866,6 @@ sub getEmptyEEpromMap ($) {
 =cut
 sub getRawEEpromData($;$$$$) {
 	my ($hash, $start, $len, $hex, $littleEndian) = @_;
-	#print Dumper ("getRawEEpromData $start $len",$hash);
 	
 	my $hmwId   = $hash->{'DEF'};
 	my $devHash = $main::modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
@@ -860,7 +887,7 @@ sub getRawEEpromData($;$$$$) {
 	my $retVal = '';
 	for ($blockCount = $blockStart; $blockCount < (ceil($addrMax / $blockLen)); $blockCount++) {
 		my $blockId = sprintf ('.eeprom_%04X' , ($blockCount * $blockLen));
-		if ($devHash->{'READINGS'}{$blockId}{VAL}) {
+		if ($devHash->{'READINGS'}{$blockId}{'VAL'}) {
 			$retVal.= $devHash->{'READINGS'}{$blockId}{'VAL'};
 		} else {
 			$retVal = 'FF' x $blockLen;
@@ -877,7 +904,7 @@ sub getRawEEpromData($;$$$$) {
 	$retVal = $littleEndian ? reverse($retVal) : $retVal;
 	$retVal = $hex ? unpack('H*', $retVal) : $retVal;
 
-#print Dumper("+++++++", unpack ('H*',$retVal), $start, $len, " -------");		
+	#print Dumper ("getRawEEpromData $start $len",unpack ('H*',$retVal));	
 	
 	return $retVal;
 }
@@ -899,7 +926,7 @@ sub setRawEEpromData($$$$) {
 	for ($blockCount = $blockStart; $blockCount < (ceil($addrMax / $blockLen)); $blockCount++) {
 
 		my $blockId = sprintf ('.eeprom_%04X' , ($blockCount * $blockLen));
-		my $blockData = $hash->{READINGS}{$blockId}{VAL};
+		my $blockData = $hash->{'READINGS'}{$blockId}{'VAL'};
 		if (!$blockData) {
 			# no blockdata defined yet
 			$blockData = 'FF' x $blockLen;
@@ -933,7 +960,7 @@ sub setRawEEpromData($$$$) {
 			$start = ($blockCount * $blockLen) + $blockLen;
 		}
 		
-		$hash->{READINGS}{$blockId}{VAL} = $newBlockData;
+		$hash->{'READINGS'}{$blockId}{'VAL'} = $newBlockData;
 
 		$len = length($data);
 		if ($len == 0) {
@@ -955,8 +982,6 @@ sub setRawEEpromData($$$$) {
 =cut
 sub parseForEepromData($;$$) {
 	my ($configHash, $adrHash, $params) = @_;
-
-	#print Dumper ("parseForEepromData");
 
 	$adrHash = $adrHash ? $adrHash : {};
 	$params  = $params ? $params : {};
@@ -1001,26 +1026,25 @@ sub parseForEepromData($;$$) {
 =cut
 sub getEEpromData($$) {
 	my ($paramHash, $params) = @_;
-	#print Dumper ("getEEpromData");
 	
-	my $count = ($params->{count} && $params->{count} > 0) ? $params->{count} : 1; 
+	my $count = ($params->{'count'} && $params->{'count'} > 0) ? $params->{'count'} : 1; 
 	my $retVal;
 	
-	if ($params->{address_start} && $params->{address_step}) {
-		my $adrStart  = $params->{address_start} ? $params->{address_start} : 0; 
-		my $adrStep   = $params->{address_step} ? $params->{address_step} : 1;
+	if ($params->{'address_start'} && $params->{'address_step'}) {
+		my $adrStart  = $params->{'address_start'} ? $params->{'address_start'} : 0; 
+		my $adrStep   = $params->{'address_step'} ? $params->{'address_step'} : 1;
 		
 		$adrStart = sprintf ('%04d' , $adrStart);
 		$retVal->{$adrStart} = $adrStep * $count;
 
 	} else {
-		if ($paramHash->{physical}{address_id}) {
-			my $adrStart =  $paramHash->{physical}{address_id};
+		if ($paramHash->{'physical'}{'address_id'}) {
+			my $adrStart =  $paramHash->{'physical'}{'address_id'};
 			$adrStart = sprintf ('%04d' , $adrStart);
 
-			my $size = $paramHash->{physical}{size};
+			my $size = $paramHash->{'physical'}{'size'};
 			$size = $size * $count;
-			$size = isInt($paramHash->{physical}{size}) ? $size : ceil(($size / 0.8));
+			$size = isInt($paramHash->{'physical'}{'size'}) ? $size : ceil(($size / 0.8));
 			
 			$retVal->{$adrStart} = $size;
 		}
@@ -1114,8 +1138,8 @@ sub parseFirmwareVersion($) {
 sub getAllowedSets($) {
 	my ($hash) = @_;
 
-	my $name   = $hash->{NAME};
-	my $model  = $hash->{MODEL};
+	my $name   = $hash->{'NAME'};
+	my $model  = $hash->{'MODEL'};
 	my $onOff  = 'on:noArg off:noArg ';
 	my $keys   = 'press_short:noArg press_long:noArg';
 	
@@ -1130,8 +1154,8 @@ sub getAllowedSets($) {
    		'dimmer.level' 	=> "slider,0,1,100 on:noArg off:noArg",
    		'button.long'	=> "noArg",
    		'button.short'	=> "noArg",
-   		'digital_analog_output.frequency' => "feedback erwünscht",
-   		'door_sensor.state' => "feedback erwünscht"
+   		'digital_analog_output.frequency' => "feedbackerwünscht",
+   		'door_sensor.state' => "feedbackerwünscht"
 	);
 	
 	my @cmdlist;
@@ -1143,29 +1167,32 @@ sub getAllowedSets($) {
 		my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 
 		if (defined($chNr)) {
-			my $channelBehaviour = getChannelBehaviour($hash);
-			if ($channelBehaviour) {
-				$hash->{behaviour} = $channelBehaviour;
-				if ($channelBehaviour eq 'output' || $channelBehaviour eq 'digital_output') {
-					$retVal = $onOff;
+			#my $channelBehaviour = getChannelBehaviour($hash);
+			#if ($channelBehaviour) {
+			#	$hash->{behaviour} = $channelBehaviour;
+			#	if ($channelBehaviour eq 'output' || $channelBehaviour eq 'digital_output') {
+			#		$retVal = $onOff;
 
-				} elsif ($channelBehaviour eq 'analog_output') {
-					$retVal = 'frequency:textField';
+			#	} elsif ($channelBehaviour eq 'analog_output') {
+			#		$retVal = 'frequency:textField';
 
-				} elsif ($channelBehaviour eq 'input' || $channelBehaviour eq 'digital_input') {
-					$retVal = $keys;
+			#	} elsif ($channelBehaviour eq 'input' || $channelBehaviour eq 'digital_input') {
+			#		$retVal = $keys;
 
-				} elsif ($channelBehaviour eq 'frequency_input') {
-					$retVal = 'frequency:slider,0,1,100 frequency2:textField';
-				}
+			#	} elsif ($channelBehaviour eq 'frequency_input') {
+			#		$retVal = 'frequency:slider,0,1,100 frequency2:textField';
+			#	}
 				
-			} else {
+			#} else {
 				my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 				my $chType    = getChannelType($deviceKey, $chNr);
 				my $commands  = getValueFromDefinitions(
 					#$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
 					$deviceKey . '/channels/' . $chType .'/paramset/values/parameter'
 				);
+				if (exists $commands->{'id'}) {	#teste for id
+					$commands = HM485::ConfigurationManager::convertIdToHash($commands);
+				}
 				foreach my $command (sort keys %{$commands}) {
 					if ($commands->{$command}{'operations'}) {
 						my @values = split(',', $commands->{$command}{'operations'});
@@ -1184,11 +1211,10 @@ sub getAllowedSets($) {
     					}
 					}
 				}
-			}
+			#}
 		}
 	}
 	$retVal = join(" ",@cmdlist);
-	#print Dumper ("getallaowedsets",$retVal);
 	return $retVal;
 }
 

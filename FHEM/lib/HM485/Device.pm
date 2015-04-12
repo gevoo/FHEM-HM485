@@ -604,7 +604,6 @@ sub valueToControl($$) {
 			$retVal = ($value > $threshold) ? 'on' : 'off';
 
 		} elsif ($control eq 'dimmer.level' || $control eq 'blind.level') {
-			#Todo es gibt auch noch einen blind level hat der auch einen faktor oder den gleichen ?
 			##Ich hoffe der multiplicator gehört hierher
 			$retVal = $value * 100;
 
@@ -875,37 +874,37 @@ sub getRawEEpromData($;$$$$) {
 	my $blockStart = 0;
 	my $blockCount = 0;
 	
-	$start        = defined($start) ? $start : 0;
-	$len          = defined($len) ? $len : $addrMax;
+	$start        = defined($start) ? $start : 0;        #45
+	$len          = defined($len) ? $len : $addrMax;	 #4     end = 45 + 4 = 49 
 	$hex          = defined($hex) ? $hex : 0;
 	$littleEndian = defined($littleEndian) ? $littleEndian : 0;
 
-	if ($start > 0) {
-		$blockStart = int($start/$blockLen);
+	if ($start > 0) {					     #ende  = 49 / 16 = 3,06 = int 3
+		$blockStart = int($start/$blockLen); #start = 45 / 16 = 2,81 = int 2
 	}
 
-	my $retVal = '';
-	for ($blockCount = $blockStart; $blockCount < (ceil($addrMax / $blockLen)); $blockCount++) {
+	my $retVal = ''; #      2                           =1024 / 16 ist immer 64 warum also ceil
+	#for ($blockCount = $blockStart; $blockCount < (ceil($addrMax / $blockLen)); $blockCount++) {
+	for ($blockCount = $blockStart; $blockCount < ($addrMax / $blockLen); $blockCount++) {
 		my $blockId = sprintf ('.eeprom_%04X' , ($blockCount * $blockLen));
 		if ($devHash->{'READINGS'}{$blockId}{'VAL'}) {
 			$retVal.= $devHash->{'READINGS'}{$blockId}{'VAL'};
 		} else {
 			$retVal = 'FF' x $blockLen;
 		}
-
-		if (length($retVal) / 2 >= $len) {
+		if (length($retVal) / 2 >= $start - $blockStart * $blockLen + $len) {
 			last;
 		}
 	}
-
+	
 	my $start2 = ( ( ($start/$blockLen) - $blockStart ) * $blockLen );
 	$retVal = pack('H*', substr($retVal, ($start2 * 2), ($len * 2) ) );
 	
 	$retVal = $littleEndian ? reverse($retVal) : $retVal;
 	$retVal = $hex ? unpack('H*', $retVal) : $retVal;
 
-	#print Dumper ("getRawEEpromData $start $len",unpack ('H*',$retVal));	
-	
+	#my $dbg = unpack ('H*',$retVal);
+	#print Dumper ("getRawEEpromData $start, $len $dbg");
 	return $retVal;
 }
 

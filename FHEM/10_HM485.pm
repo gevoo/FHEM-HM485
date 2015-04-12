@@ -29,7 +29,7 @@ use lib::HM485::Device;
 use lib::HM485::Util;
 use lib::HM485::FhemWebHelper;
 use lib::HM485::ConfigurationManager;
-#use lib::HM485::PeeringManager;
+use lib::HM485::PeeringManager;
 #use lib::HM485::Command;
 
 use Scalar::Util qw(looks_like_number);
@@ -542,8 +542,8 @@ sub HM485_FhemwebShowConfig($$$) {
 	my $configHash = HM485::ConfigurationManager::getConfigFromDevice($hash, $chNr);
 
 	# Todo: make ready
-	my $peerHash = $hash->{'peerings'};
-	#my $peerHash = HM485::PeeringManager::getPeeringFromDevice($hash, $chNr);
+	#my $peerHash = $hash->{'peerings'};
+	my $peerHash = HM485::PeeringManager::getPeeringFromDevice($hash, $chNr);
 
 	my $content = HM485::FhemWebHelper::showConfig($hash, $configHash, $peerHash);
 

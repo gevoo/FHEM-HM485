@@ -210,7 +210,7 @@ sub getChannelBehaviour($) {
 					my $chConfig = HM485::ConfigurationManager::getConfigFromDevice(
 						$hash, $chNr
 					);
-					print Dumper ("getChannelBehaviour");
+					#print Dumper ("getChannelBehaviour:$chConfig->{'behaviour'}{'value'}");
 				
 				my $possibleValues = HM485::ConfigurationManager::optionsToArray($chConfig->{'behaviour'}{'possibleValues'});
 				my @possibleValuesArray = split(',', $possibleValues); ###Todo kein arrray sondern string
@@ -226,9 +226,55 @@ sub getChannelBehaviour($) {
 			}
 		}
 	}
-	print Dumper ("getChannelBehaviour",$retVal);
+	print Dumper ("getChannelBehaviour:$retVal");
 	return $retVal;
 }
+
+sub getBehaviourCommand($) {
+	my ($hash) = @_;
+	my $retVal = undef;
+	
+	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
+
+	if (defined($chNr)) {
+		my $deviceKey = getDeviceKeyFromHash($hash);
+		
+		if ($deviceKey) {
+			my $chType = HM485::Device::getChannelType($deviceKey, $chNr); #key
+			my $channelConfig  = getValueFromDefinitions(
+				$deviceKey . '/channels/' . $chType
+			);
+			
+			if ($channelConfig->{'special_parameter'}{'id'} &&
+			   ($channelConfig->{'special_parameter'}{'id'} eq 'behaviour') &&
+			    $channelConfig->{'special_parameter'}{'physical'}{'address'}{'index'}) {
+					my $chConfig = HM485::ConfigurationManager::getConfigFromDevice(
+						$hash, $chNr
+					);
+
+				if ($chConfig->{'behaviour'}{'value'} eq '1') {
+					my $search  = getValueFromDefinitions(
+						$deviceKey . '/channels/' . $chType .'/subconfig/paramset/'
+					);
+					if (ref($search) eq 'HASH') {
+						#leider kann getValueFromDefinitions nicht tiefer suchen
+						foreach my $valueHash (keys %{$search}) {
+							my $item = $search->{$valueHash};
+							foreach my $found (keys %{$item}) {
+								if ($found eq 'type' && $search->{$valueHash}{$found} eq 'values') {
+									$retVal = $search->{$valueHash}{'parameter'};
+								}
+							}
+						}
+					}
+				}				
+			}
+		}
+	}
+	#print Dumper ("getBehaviour",$retVal);
+	return $retVal;
+}
+
 
 
 
@@ -386,7 +432,7 @@ sub getFrameInfos($$;$$$) {
 			#wird, bis dahin halt so
 			
 			if (!$behaviour) {
-				print Dumper ("behaviour ist Nicht gesetzt");
+				#print Dumper ("behaviour ist Nicht gesetzt");
 				if ($frame eq 'info_frequency') {next;}
 			}
 						
@@ -488,7 +534,7 @@ sub getValueFromEepromData($$$$;$) {
 
 sub getPhysicalAddress($$$$) {
 	my ($hash, $configHash, $adressStart, $adressStep) = @_;
-	print Dumper ("getPhysicalAddress: $adressStart : $adressStep");
+	#print Dumper ("getPhysicalAddress: $adressStart : $adressStep");
 		
 	my $adrId = 0;
 	my $size  = 0;
@@ -589,7 +635,7 @@ sub getValueFromHexData($;$$) {
 sub convertFrameDataToValue($$$) {
 	my ($hash, $deviceKey, $frameData) = @_;
 	
-	print Dumper ("convertFrameDataToValue",$frameData);
+	print Dumper ("convertFrameDataToValue $frameData->{'id'}");
 
 	if ($frameData->{'ch'}) {
 		foreach my $valId (keys %{$frameData->{'params'}}) {
@@ -824,31 +870,31 @@ sub dataConversion($$;$) {
 sub getChannelValueMap($$$$) {
 	my ($hash, $deviceKey, $frameData, $valId) = @_;
 	
-	my $channel = $frameData->{'ch'}; #01
-	my $chType = getChannelType($deviceKey, $channel); #digital_output
+	my $channel = $frameData->{'ch'};
+	my $chType = getChannelType($deviceKey, $channel);
 
 	my $hmwId = $hash->{'DEF'}; 
 	my $chHash = $main::modules{'HM485'}{'defptr'}{$hmwId . '_' . $channel};
 
 	my $values;
-	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash); #analog_output
-	print Dumper ("getChannelValueMapchannelBehaviour",$channelBehaviour);
+	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash);
 
 # Todo: Check $channelBehaviour and $valuePrafix
 	if ($channelBehaviour) {
-		print Dumper ("getChannelValueMap channelbehaviour",$channelBehaviour);
+		print Dumper ("getChannelValueMap channelbehaviour:$channelBehaviour");
 	}
 #	my $valuePrafix = $channelBehaviour ? '.' . $channelBehaviour : ''; ###digital_analog_output
-	my $valuePrafix = '';    #hmw_analog_output_values
+	my $valuePrafix = '';    #hmw_analog_output_values wie krieg ich das ? bräuchte ich auch im behaviourcommand
 	#$values  = getValueFromDefinitions( $deviceKey . '/channels/' . $chType . '/subconfig/paramset/');
 	$values  = getValueFromDefinitions(
 		$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
 	);
 	my $retVal;
 	if (defined($values)) {
-		print Dumper ("getChannelValueMap",$valId);
+		print Dumper ("getChannelValueMap $valId");
 		if (exists ($values->{'id'})) {
-			print Dumper ("OJE eine ID getChannelValueMap",$values);
+			#oh wie ich diese id's hasse :-(
+			#print Dumper ("OJE eine ID getChannelValueMap",$values);
 			$values = HM485::Util::convertIdToHash($values);
 		}
 		foreach my $value (keys %{$values}) {
@@ -1165,14 +1211,6 @@ sub subBit ($$$) {
 	return (($byte << (8 - $start - $len)) & 0xFF) >> (8 - $len);
 }
 
-
-
-
-
-
-
-
-
 sub internalUpdateEEpromData($$) {
 	my ($devHash, $requestData) = @_;
 
@@ -1215,7 +1253,6 @@ sub parseFirmwareVersion($) {
 
 sub getAllowedSets($) {
 	my ($hash) = @_;
-	#Todo behaviour vom io12sw14 sind noch deaktiviert
 	
 	my $name   = $hash->{'NAME'};
 	my $model  = $hash->{'MODEL'};
@@ -1233,72 +1270,54 @@ sub getAllowedSets($) {
    		'dimmer.level' 	=> "slider,0,1,100 on:noArg off:noArg",
    		'button.long'	=> "noArg",
    		'button.short'	=> "noArg",
-   		'digital_analog_output.frequency' => "feedbackerwünscht",
+   		'digital_analog_output.frequency' => "slider,0,1,100 frequency2:textField",
    		'door_sensor.state' => "feedbackerwünscht"
 	);
 	
 	my @cmdlist;
-
-
 	my $retVal = undef;
+
 	if (defined($model) && $model) {
 		
 		my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 
 		if (defined($chNr)) {
-			#my $channelBehaviour = getChannelBehaviour($hash);
-			#if ($channelBehaviour) {
-			#	print Dumper ("getAllowedSets Behaviour",$channelBehaviour);
 			
-			#	$hash->{behaviour} = $channelBehaviour;
-			#	if ($channelBehaviour eq 'output' || $channelBehaviour eq 'digital_output') {
-			#		$retVal = $onOff;
-
-			#	} elsif ($channelBehaviour eq 'analog_output') {
-			#		$retVal = 'frequency:textField';
-
-			#	} elsif ($channelBehaviour eq 'input' || $channelBehaviour eq 'digital_input') {
-			#		$retVal = $keys;
-
-			#	} elsif ($channelBehaviour eq 'frequency_input') {
-			#		$retVal = 'frequency:slider,0,1,100 frequency2:textField';
-			#	}
+			my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
+			my $chType    = getChannelType($deviceKey, $chNr);
+			my $commands  = getValueFromDefinitions(
+				$deviceKey . '/channels/' . $chType .'/paramset/values/parameter'
+			);
 				
-			#} else {
-				my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
-				my $chType    = getChannelType($deviceKey, $chNr);
-				my $commands  = getValueFromDefinitions(
-					#$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
-					$deviceKey . '/channels/' . $chType .'/paramset/values/parameter'
-				);
-				#if (exists $commands->{'id'}) {	#teste for id
-				#	$commands = HM485::Util::convertIdToHash($commands);
-				#}
-				#print Dumper ("getAllowedSets commands",$commands);
-				if (exists ($commands->{'id'})) {
-					print Dumper ("OJE eine ID getAllowedSets"); 
-					$commands = HM485::Util::convertIdToHash($commands);
-				} #else {
-					foreach my $command (sort (keys %{$commands})) {
-						if ($commands->{$command}{'operations'}) {
-							my @values = split(',', $commands->{$command}{'operations'});
-  							foreach my $val (@values) {
-    							if ($val eq 'write' && $commands->{$command}{'physical'}{'interface'} eq 'command') {
-									if ($commands->{$command}{'control'}) {
-										my $ctrl = $commands->{$command}{'control'};
-										if ($cmdOverwrite{$ctrl}) {
-											push @cmdlist, $cmdOverwrite{$ctrl};
-										}
-										if($cmdArgs{$ctrl}) {
-											push @cmdlist, "$command:$cmdArgs{$ctrl}";	
-										}
-									} else {push @cmdlist, "$command";}
+			my $bahaviour = getBehaviourCommand($hash);
+			if ($bahaviour) {
+				$commands = $bahaviour;
+			}
+				
+			if (exists ($commands->{'id'})) {
+				#print Dumper ("OJE eine ID getAllowedSets"); 
+				$commands = HM485::Util::convertIdToHash($commands);
+			}
+			foreach my $command (sort (keys %{$commands})) {
+				if ($commands->{$command}{'operations'}) {
+					my @values = split(',', $commands->{$command}{'operations'});
+  					foreach my $val (@values) {
+    					if ($val eq 'write' && $commands->{$command}{'physical'}{'interface'} eq 'command') {
+							if ($commands->{$command}{'control'}) {
+								my $ctrl = $commands->{$command}{'control'};
+								if ($cmdOverwrite{$ctrl}) {
+									push @cmdlist, $cmdOverwrite{$ctrl};
 								}
-    						}
+								if($cmdArgs{$ctrl}) {
+									push @cmdlist, "$command:$cmdArgs{$ctrl}";	
+								}
+							} else {
+								push @cmdlist, "$command";
+							}
 						}
-					}
-				#}
-			#}
+    				}
+				}
+			}
 		}
 	}
 	$retVal = join(" ",@cmdlist);

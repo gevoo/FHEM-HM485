@@ -47,7 +47,7 @@ sub getConfigFromDevice($$) {
 			}
 		}
 	}
-	print Dumper("getConfigFromDevice,$chNr");
+	#print Dumper("getConfigFromDevice,$chNr");
 	return $retVal;
 }
 

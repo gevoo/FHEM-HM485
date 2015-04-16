@@ -1251,23 +1251,25 @@ our %definition = (
 						"address_start" => 0x1F,
 						"address_step" => 2,
 						"parameter" => {
-							"id" => "logging",
-							"logical" => {
-								"option" => {
-									"off" => {},
-									"on" => {
-										"default" => true
-									}
+							"logging" => {
+								"id" => "logging",
+								"logical" => {
+									"option" => {
+										"off" => {},
+										"on" => {
+											"default" => true
+										}
+									},
+									"type" => "option"
 								},
-								"type" => "option"
-							},
-							"physical" => {
-								"address" => {
-									"index" => 0
-								},
-								"interface" => "eeprom",
-								"size" => 0.1,
-								"type" => "integer"
+								"physical" => {
+									"address" => {
+										"index" => 0
+									},
+									"interface" => "eeprom",
+									"size" => 0.1,
+									"type" => "integer"
+								}
 							}
 						},
 						"type" => "master"

@@ -19,55 +19,87 @@ sub getConfigFromDevice($$) {
 	my ($hash, $chNr) = @_;
 	#Todo wird 2 mal aufgerufen suchen von wo und warum
 	
-
 	my $retVal = {};
 	my $configHash = getConfigSettings($hash);
 
 	if (ref($configHash) eq 'HASH') {
-		my $adressStart = $configHash->{'address_start'} ? $configHash->{'address_start'} : 0;
-		my $adressStep = $configHash->{'address_step'} ? $configHash->{'address_step'} : 0; #Todo oder lieber 1
+		
 		if (ref($configHash->{'parameter'}) eq 'HASH') {
-			foreach my $config (keys $configHash->{'parameter'}) {
-				my $dataConfig = $configHash->{'parameter'}{$config};
-				if (ref($dataConfig) eq 'HASH') {
-					my $type  = $dataConfig->{'logical'}{'type'} ? $dataConfig->{'logical'}{'type'} : undef;
-					my $unit  = $dataConfig->{'logical'}{'unit'} ? $dataConfig->{'logical'}{'unit'} : '';
-					my $min   = defined($dataConfig->{'logical'}{'min'})  ? $dataConfig->{'logical'}{'min'}  : undef;
-					my $max   = defined($dataConfig->{'logical'}{'max'})  ? $dataConfig->{'logical'}{'max'}  : undef;
-
-					$retVal->{$config}{'type'}  = $type;
-					$retVal->{$config}{'unit'}  = $unit;
-
-					$retVal->{$config}{'value'} = HM485::Device::getValueFromEepromData (
-						$hash, $dataConfig, $adressStart, $adressStep
-					);
-
-					### debug	
-					#my $adressStep = $configHash->{'address_step'} ? $configHash->{'address_step'} : 1;
-					my ($adrId, $size) = HM485::Device::getPhysicalAddress(
-						$hash, $dataConfig, $adressStart, $adressStep
-					);
-
-					$retVal->{$config}{'physical'} = $dataConfig->{'parameter'}{'physical'};
-					$retVal->{$config}{'physical'}{'address'}{'index'} = $adrId;
-					$retVal->{$config}{'physical'}{'size'} = $size;
-					$retVal->{$config}{'physical'}{'address_start'} = $adressStart;
-					$retVal->{$config}{'physical'}{'address_step'} = $adressStep;
-					###
-				
-					if ($type && $type ne 'option') {
-						#todo da gibts noch mehr: boolean
-						#print Dumper ($dataConfig->{'logical'}{'type'});
-						$retVal->{$config}{'logical'}{'min'} = $min;
-						$retVal->{$config}{'logical'}{'max'} = $max;
-					} else {
-						$retVal->{$config}{'possibleValues'} = $dataConfig->{'logical'}{'option'};
+			if ($configHash->{'parameter'}{'id'}) {
+				#wenns eine id gibt sollte es keinen extra hash mit dem namen geben
+				my $id = $configHash->{'parameter'}{'id'};
+				$retVal->{$id} = writeConfigParameter($hash,$chNr,
+					$configHash->{'parameter'},
+					$configHash->{'address_start'},
+					$configHash->{'address_step'}
+				);
+			# mehrere Config Parameter
+			} else {
+				foreach my $config (keys $configHash->{'parameter'}) {
+					if (ref($configHash->{'parameter'}{$config}) eq 'HASH') {
+						$retVal->{$config} = writeConfigParameter($hash,$chNr,
+							$configHash->{'parameter'}{$config},
+							$configHash->{'address_start'},
+							$configHash->{'address_step'}
+						);
 					}
-				}
+				}	
 			}
 		}
 	}
-	#print Dumper("getConfigFromDevice,$chNr");
+	print Dumper("getConfigFromDevice,$chNr");
+	return $retVal;
+}
+
+sub writeConfigParameter($$$;$$) {
+	my ($hash, $chNr, $parameterHash, $addressStart, $addressStep) = @_ ;
+	
+	my $retVal = {};
+	my $type   = $parameterHash->{'logical'}{'type'} ? $parameterHash->{'logical'}{'type'} : undef;
+	my $unit   = $parameterHash->{'logical'}{'unit'} ? $parameterHash->{'logical'}{'unit'} : '';
+	my $min    = defined($parameterHash->{'logical'}{'min'})  ? $parameterHash->{'logical'}{'min'}  : undef;
+	my $max    = defined($parameterHash->{'logical'}{'max'})  ? $parameterHash->{'logical'}{'max'}  : undef;
+
+	$retVal->{'type'}  = $type;
+	$retVal->{'unit'}  = $unit;
+	
+	if ($type && $type ne 'option') {
+		#todo da gibts da noch mehr ?
+		if ($type ne 'boolean') {
+			$retVal->{'min'} = $min;
+			$retVal->{'max'} = $max;
+		}
+	} else {
+		#Todo gleich hier was anständiges reinschreiben
+		#und einmal nachsehen, ob Default bits immer 1 sind
+		#dann würde auch optionsToArray wieder einen Sinn machen
+		#ist ja zur Zeit Options to String 
+		#zb puschbutton => 1
+		#   switch => 0
+		$retVal->{'possibleValues'} = $parameterHash->{'logical'}{'option'};
+	}
+	
+	my $addrStart = $addressStart ? $addressStart : 0;
+	#address_steps gibts mehrere Varianten
+	my $addrStep = $addressStep ? $addressStep : 0;
+	if( $parameterHash->{'physical'}{'address'}{'step'}) {
+		$addrStep = $parameterHash->{'physical'}{'address'}{'step'};
+	}
+
+	###debug Dadurch wird allerdings getPhysicalAddress 2 mal hintereinander aufgerufen !
+	my ($addrId, $size, $endian) = HM485::Device::getPhysicalAddress(
+				$hash, $parameterHash, $addrStart, $addrStep);
+	
+	$retVal->{'address_start'} = $addrStart;
+	$retVal->{'address_step'} = $addrStep;
+	$retVal->{'address_index'} = $addrId;
+	$retVal->{'size'} = $size;
+	$retVal->{'endian'} = $endian;
+	####
+	$retVal->{'value'} = HM485::Device::getValueFromEepromData (
+		$hash, $parameterHash, $addrStart, $addrStep
+	);
+
 	return $retVal;
 }
 
@@ -81,6 +113,7 @@ sub optionsToArray($) {
 		my @map;
 		my $default;
 		my $nodefault;
+		
 		foreach my $oKey (keys %{$optionList}) {
 			#das geht bestimmt schöner! zuerst default suchen und danach nochmal alles wieder durchsuchen?
 			if (defined( $optionList->{$oKey}{default})) {
@@ -159,10 +192,10 @@ sub getConfigSettings($) {
 				);
 			}
 			if (ref($configSettings) eq 'HASH') {
-				#print Dumper ("getConfigSettings vor convertIdToHash:",$configSettings);
 				if (exists $configSettings->{'parameter'}{'id'}) {
+					#print Dumper ("getConfigSettings vor convertIdToHash:");
 					#rewrite Config ID
-					$configSettings->{'parameter'} = convertIdToHash($configSettings->{'parameter'});
+					#$configSettings->{'parameter'} = HM485::Util::convertIdToHash($configSettings->{'parameter'});
 				#	print Dumper ("getConfigSettings:convertIdToHash",$configSettings);
 				}
 				
@@ -178,19 +211,6 @@ sub getConfigSettings($) {
 #		$devHash->{cache}{configSettings} = $configSettings;
 #	}
 	return $configSettings;
-}
-
-sub convertIdToHash($) {
-	my ($configSettings) = @_;
-	
-	my $ConvertHash = {};
-	my $id = $configSettings->{'id'};
-	
-	if ($id) {
-		$ConvertHash->{$id} = $configSettings;
-		#delete $ConvertHash->{$id}{'id'}; wenn ich die id lösche gehts nimmer Warum?
-	}
-	return $ConvertHash;
 }
 
 sub convertSettingsToEepromData($$) {

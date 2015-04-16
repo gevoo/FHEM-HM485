@@ -623,12 +623,13 @@ sub HM485_GetConfig($$) {
 	my ($hash, $hmwId) = @_;
 
 	my $devHash = $modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
+	print Dumper ("HM485_GetConfig $devHash->{'MODEL'}");
 
 	HM485::Util::logger(
 		HM485::LOGTAG_HM485, 3, 'Request config for device ' . substr($hmwId,0,8)
 	);
 
-	# here we query eeprom data wit device settings
+	# here we query eeprom data with device settings
 	if ($devHash->{'MODEL'}) {
 		my $eepromMap = HM485::Device::getEmptyEEpromMap($devHash);
 		
@@ -788,9 +789,14 @@ sub HM485_SetChannelState($$$) {
 		#Todo geht channel behaviour habe kein solches gerät?
 		$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
 	);
-
+print Dumper ("SetChannelState $value $cmd",$values);
 	my $frameData;
 
+	if ($values->{'id'}) {
+		print Dumper ("OJE eine ID SetChannelState"); 
+		$values = HM485::Util::convertIdToHash($values);
+	}
+	
 	foreach my $valueKey (keys %{$values}) {
 		if ($valueKey eq 'state' || $valueKey eq 'level' || $valueKey eq 'frequency') {
 			my $valueHash = $values->{$valueKey} ? $values->{$valueKey} : '';
@@ -817,15 +823,17 @@ sub HM485_SetChannelState($$$) {
 				physical => $valueHash->{'physical'}
 			};
 
-			my $statValue = HM485::Device::dataConversion(
-				$value, $valueHash->{'conversion'}, 'from_device'
-			);
+			#my $statValue = HM485::Device::dataConversion(
+			#	$value, $valueHash->{'conversion'}, 'from_device'
+			#);
 			
 			
 			if ($frameData) {
 				my $frameType = $valueHash->{'physical'}{'set'}{'request'};
 		
 				my $data = HM485::Device::buildFrame($hash, $frameType, $frameData);
+				
+				print Dumper ("SetChannelState $value $cmd",$data,$frameType,$frameData);
 				
 				HM485_SendCommand($hash, $hmwId, $data) if length $data;
 			}
@@ -1218,7 +1226,7 @@ sub HM485_DoSendCommand($) {
 =cut
 sub HM485_ProcessChannelState($$$$) {
 	my ($hash, $hmwId, $msgData, $actionType) = @_;
-	
+	print Dumper ("ProcessChannelState");
 	my $name = $hash->{'NAME'};
 	if ($msgData) {
 		if ($hash->{'MODEL'}) {

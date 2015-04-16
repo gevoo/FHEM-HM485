@@ -282,4 +282,18 @@ sub getHashKeyBySubkey($$$) {
 	return $retVal;
 }
 
+sub convertIdToHash($) {
+	my ($configSettings) = @_;
+	
+	my $ConvertHash = {};
+	my $id = $configSettings->{'id'};
+	
+	if ($id) {
+			$ConvertHash->{$id} = $configSettings;
+			#delete $ConvertHash->{$id}{'id'}; wenn ich die id lösche gehts nimmer Warum?
+	}
+	
+	return $ConvertHash;
+}
+
 1;

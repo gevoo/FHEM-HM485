@@ -780,14 +780,18 @@ sub HM485_SetChannelState($$$) {
 	
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 	my $devHash        = $main::modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
-	my $deviceKey      = HM485::Device::getDeviceKeyFromHash($devHash); ##OK
-	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr); ##OK
+	my $deviceKey      = HM485::Device::getDeviceKeyFromHash($devHash);
+	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
 	my $values;
-	my $channelBehaviour = HM485::Device::getChannelBehaviour($hash); ##?OK
-	my $valuePrafix = $channelBehaviour ? '.' . $channelBehaviour : '';
+	my ($channelBehaviour,$bool) = HM485::Device::getChannelBehaviour($hash);
+	
+	print Dumper ("SetChannelState:$chType beahviour: $channelBehaviour $bool");
+	
+	my $valuePrafix = $bool ? '/subconfig/paramset/hmw_'. $channelBehaviour. 
+		'_values/parameter' : '/paramset/values/parameter/';
+	
 	$values = HM485::Device::getValueFromDefinitions(
-		#Todo geht channel behaviour habe kein solches gerät?
-		$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
+		$deviceKey . '/channels/' . $chType . $valuePrafix
 	);
 print Dumper ("SetChannelState $value $cmd",$values);
 	my $frameData;
@@ -805,8 +809,9 @@ print Dumper ("SetChannelState $value $cmd",$values);
 
 			if ($cmd eq 'on' || $cmd eq 'off') {
 				my $control = $valueHash->{'control'} ? $valueHash->{'control'} : '';
-				if ($control eq 'switch.state' || $control eq 'blind.level' || $control eq 'dimmer.level') {
-					
+				if ($control eq 'switch.state' || $control eq 'blind.level' ||
+					$control eq 'dimmer.level' || $control eq 'valve.level') {
+					print Dumper("SetChannelState control: $control");
 					$frameValue = HM485::Device::onOffToState($valueHash, $cmd); ##OK
 					$value = $cmd;
 				} else {
@@ -1226,13 +1231,14 @@ sub HM485_DoSendCommand($) {
 =cut
 sub HM485_ProcessChannelState($$$$) {
 	my ($hash, $hmwId, $msgData, $actionType) = @_;
-	print Dumper ("ProcessChannelState");
+	print Dumper ("ProcessChannelState",$msgData, $actionType);
 	my $name = $hash->{'NAME'};
 	if ($msgData) {
 		if ($hash->{'MODEL'}) {
 			my $valueHash = HM485::Device::parseFrameData($hash, $msgData, $actionType);
 			if ($valueHash->{'ch'}) {
 				my $chHash = HM485_GetHashByHmwid($hash->{'DEF'} . '_' . $valueHash->{'ch'});
+				print Dumper ("ProcessChannelState value:" ,$valueHash->{'value'}); #hier steht schon frequency
 				HM485_ChannelUpdate($chHash, $valueHash->{'value'});
 			}
 		}

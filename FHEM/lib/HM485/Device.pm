@@ -191,6 +191,7 @@ sub getModelList() {
 sub getChannelBehaviour($) {
 	my ($hash) = @_;
 	my $retVal = undef;
+	my $bool = 0; #false
 	
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 
@@ -210,7 +211,8 @@ sub getChannelBehaviour($) {
 					my $chConfig = HM485::ConfigurationManager::getConfigFromDevice(
 						$hash, $chNr
 					);
-					#print Dumper ("getChannelBehaviour:$chConfig->{'behaviour'}{'value'}");
+				$bool = $chConfig->{'behaviour'}{'value'};
+				print Dumper ("getChannelBehaviour retbool :$chConfig->{'behaviour'}{'value'}");
 				
 				my $possibleValues = HM485::ConfigurationManager::optionsToArray($chConfig->{'behaviour'}{'possibleValues'});
 				my @possibleValuesArray = split(',', $possibleValues); ###Todo kein arrray sondern string
@@ -226,8 +228,8 @@ sub getChannelBehaviour($) {
 			}
 		}
 	}
-	print Dumper ("getChannelBehaviour:$retVal");
-	return $retVal;
+	print Dumper ("getChannelBehaviour:$retVal $bool");
+	return ($retVal, $bool);
 }
 
 sub getBehaviourCommand($) {
@@ -389,14 +391,15 @@ sub getChannelType($$) {
 sub parseFrameData($$$) {
 	my ($hash, $data, $actionType) = @_;
 	
-	my $deviceKey        = HM485::Device::getDeviceKeyFromHash($hash);
-	 #weil info_frequency und info_level gleiche id haben
-	my $channel          = hex(substr($data, 2,2));
-	my $hmwId            = $hash->{'DEF'}; 
+	my $deviceKey        = HM485::Device::getDeviceKeyFromHash($hash); #OK
+	# weil info_frequency und info_level gleiche
+	# id haben brauch ich ein behaviour in getFrameInfos
+	my $channel          = sprintf("%02d",hex (substr($data, 2, 2)) +1);
+	my $hmwId            = $hash->{'DEF'};
 	my $chHash           = $main::modules{'HM485'}{'defptr'}{$hmwId . '_' . $channel};
-	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash);
-	
-	my $frameData        = getFrameInfos($deviceKey, $data, 1, $channelBehaviour, 'from_device');
+	my ($behaviour,$behavBool) = HM485::Device::getChannelBehaviour($chHash);
+	print Dumper ("parseFrameData behav:$behaviour bool:$behavBool");
+	my $frameData        = getFrameInfos($deviceKey, $data, 1, $behaviour, 'from_device');
 	my $retVal           = convertFrameDataToValue($hash, $deviceKey, $frameData);
 	return $retVal;
 }
@@ -425,15 +428,19 @@ sub getFrameInfos($$;$$$) {
 				delete ($frames->{$frame}{'parameter'});
 				$frames->{$frame}{'parameter'} = $replace;
 			}
-			#info_frequency auslassen wenn behaviour gesetzt ist da
+			#info_frequency auslassen wenn behaviour digital_output ist da
 			#'type' => 105 info_level , und 105 info_frequency gleich
 			#und info_level eine size von 2 hat info_frequency jedoch 3
 			#Todo evtl. gehts noch irgendwie anders wenn ein frame empfangen
 			#wird, bis dahin halt so
 			
-			if (!$behaviour) {
+			if ($behaviour eq 'digital_output') {
 				#print Dumper ("behaviour ist Nicht gesetzt");
+				#Todo Direct auslesen welcher Channel welchen behaviour hat
 				if ($frame eq 'info_frequency') {next;}
+				print Dumper ("getFrameInfos lasse info_frequency aus");
+			} elsif ($behaviour eq 'analog_output') {
+				if ($frame eq 'info_level') {next;}
 			}
 						
 			my $fType  = $frames->{$frame}{'type'};
@@ -680,10 +687,12 @@ sub valueToControl($$) {
 			$threshold = $threshold ? int($threshold) : 1;
 			$retVal = ($value > $threshold) ? 'on' : 'off';
 
-		} elsif ($control eq 'dimmer.level' || $control eq 'blind.level') {
-			##Ich hoffe der multiplicator gehört hierher
-			$retVal = $value * 100;
-
+		} elsif ($control eq 'dimmer.level' || $control eq 'blind.level' || $control eq 'valve.level') {
+			#da HMW von 0 - 1 schickt und FHEM 0 -100 braucht
+			if (exists $paramHash->{'logical'}{'unit'} && 
+				$paramHash->{'logical'}{'unit'} eq '100%') {
+				$retVal = $value * 100;
+			}
 		} elsif (index($control, 'button.') > -1) {
 			$retVal = $valName . ' ' . $value;
 
@@ -727,8 +736,12 @@ sub onOffToState($$) {
 
 sub valueToState($$$$) {
 	my ($chType, $valueHash, $valueKey, $value) = @_;
+
 	#da FHEM von 0 - 100 schickt und HMW 0-1
-	$value = $value / 100;
+	if (exists $valueHash->{'logical'}{'unit'} && 
+		$valueHash->{'logical'}{'unit'} eq '100%') {
+		$value = $value / 100;
+	}
 	
 	my $factor = $valueHash->{'conversion'}{'factor'} ? int($valueHash->{'conversion'}{'factor'}) : 1;
 	my $state = int($value * $factor);
@@ -877,18 +890,21 @@ sub getChannelValueMap($$$$) {
 	my $chHash = $main::modules{'HM485'}{'defptr'}{$hmwId . '_' . $channel};
 
 	my $values;
-	my $channelBehaviour = HM485::Device::getChannelBehaviour($chHash);
-
-# Todo: Check $channelBehaviour and $valuePrafix
-	if ($channelBehaviour) {
-		print Dumper ("getChannelValueMap channelbehaviour:$channelBehaviour");
-	}
-#	my $valuePrafix = $channelBehaviour ? '.' . $channelBehaviour : ''; ###digital_analog_output
-	my $valuePrafix = '';    #hmw_analog_output_values wie krieg ich das ? bräuchte ich auch im behaviourcommand
-	#$values  = getValueFromDefinitions( $deviceKey . '/channels/' . $chType . '/subconfig/paramset/');
-	$values  = getValueFromDefinitions(
-		$deviceKey . '/channels/' . $chType .'/paramset/values/parameter' . $valuePrafix . '/'
+	
+	
+	
+	
+	my ($channelBehaviour,$bool) = HM485::Device::getChannelBehaviour($chHash);
+	
+	print Dumper ("SetChannelState:$chType beahviour: $channelBehaviour $bool");
+	
+	my $valuePrafix = $bool ? '/subconfig/paramset/hmw_'. $channelBehaviour. 
+		'_values/parameter' : '/paramset/values/parameter/';
+	
+	$values = getValueFromDefinitions(
+		$deviceKey . '/channels/' . $chType . $valuePrafix
 	);
+	
 	my $retVal;
 	if (defined($values)) {
 		print Dumper ("getChannelValueMap $valId");
@@ -1268,9 +1284,10 @@ sub getAllowedSets($) {
    		'blind.level'	=> "slider,0,1,100 on:noArg off:noArg",
    		'blind.stop'	=> "noArg",
    		'dimmer.level' 	=> "slider,0,1,100 on:noArg off:noArg",
+   		'valve.level' 	=> "slider,0,1,100 on:noArg off:noArg",
    		'button.long'	=> "noArg",
    		'button.short'	=> "noArg",
-   		'digital_analog_output.frequency' => "slider,0,1,100 frequency2:textField",
+   		'digital_analog_output.frequency' => "slider,0,1,100", # frequency2:textField",
    		'door_sensor.state' => "feedbackerwünscht"
 	);
 	

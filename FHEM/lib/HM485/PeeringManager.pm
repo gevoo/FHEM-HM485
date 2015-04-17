@@ -6,6 +6,27 @@ use POSIX qw(ceil);
 
 use Data::Dumper;
 
+
+sub sensorsToInternals($$$) {
+	my ($hash, $address, $channel) = @_;
+	#split sensordata from internals
+	my $sensor;
+	
+	if ($address && $channel) {
+		$sensor = sprintf("%s_%02d", $address, $channel);
+	}
+
+	if ($hash->{'peers'}) {
+		if (index($hash->{'peers'}, $sensor) != -1) {
+    		#print "$sensor";
+		} else {
+			$hash->{'peers'} = join (' ', $hash->{'peers'}, $sensor);
+		}
+	} else {
+		$hash->{'peers'} = $sensor;
+	}
+}
+
 =head2 getPeeringFromDevice
 	Get config from Device
 	
@@ -17,7 +38,7 @@ use Data::Dumper;
 =cut
 sub getPeeringFromDevice($$) {
 	my ($hash, $chNr) = @_;
-	
+		
 	my $retVal = {};
 	if ($chNr eq '0') {
 		return;
@@ -32,7 +53,7 @@ sub getPeeringFromDevice($$) {
 		print Dumper ("getPeeringFromDevice Addr start: $dbg; step: $addressStep count: $addressCount");
 		
 		for (my $i=0 ; $i < $addressCount; $i++) { 
-			$hash->{'PEERNR'} = $i;
+			$hash->{'.PEERNR'} = $i;
 		#	print Dumper ("getPeeringFromDevice DeviceHash" ,$hash);
 					
 			foreach my $peerParam (keys $peeringHash->{'parameter'}) {
@@ -65,7 +86,13 @@ sub getPeeringFromDevice($$) {
 					) +1 ;
 				}
 			} #foreach
-		print Dumper("getPeeringFromDevice,$chNr",$retVal);
+		#print Dumper("getPeeringFromDevice ch:,$chNr",$retVal);
+		if ($retVal->{'peerchannel'} == $chNr && ref($retVal->{'actuator'}) eq 'HASH') {
+			sensorsToInternals($hash, $retVal->{'actuator'}{'address'}, $retVal->{'actuator'}{'channel'});
+		}
+		if ($retVal->{'peerchannel'} == $chNr && ref($retVal->{'sensor'}) eq 'HASH') {
+			sensorsToInternals($hash, $retVal->{'sensor'}{'address'}, $retVal->{'sensor'}{'channel'});
+		}
 		last if ($retVal->{'peerchannel'} eq '256');
 		} #for schleife
 		
@@ -153,7 +180,7 @@ sub getPhysicalAddress($$$$) {
 	my $adrId = 0;
 	my $size  = 0;
 	my $littleEndian = 0;
-	my $peerNr = $hash->{'PEERNR'};
+	my $peerNr = $hash->{'.PEERNR'};
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 	my $deviceKey = HM485::Device::getDeviceKeyFromHash($hash);
 	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);

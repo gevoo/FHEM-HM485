@@ -212,7 +212,7 @@ sub getChannelBehaviour($) {
 						$hash, $chNr
 					);
 				$bool = $chConfig->{'behaviour'}{'value'};
-				print Dumper ("getChannelBehaviour retbool :$chConfig->{'behaviour'}{'value'}");
+				#print Dumper ("getChannelBehaviour retbool :$chConfig->{'behaviour'}{'value'}");
 				
 				my $possibleValues = HM485::ConfigurationManager::optionsToArray($chConfig->{'behaviour'}{'possibleValues'});
 				my @possibleValuesArray = split(',', $possibleValues); ###Todo kein arrray sondern string
@@ -228,7 +228,7 @@ sub getChannelBehaviour($) {
 			}
 		}
 	}
-	print Dumper ("getChannelBehaviour:$retVal $bool");
+	#print Dumper ("getChannelBehaviour:$retVal $bool");
 	return ($retVal, $bool);
 }
 
@@ -291,7 +291,7 @@ sub getBehaviourCommand($) {
 	Args 		: nothing
 =cut
 sub getHwTypeList() {
-	print Dumper ("getHwTypeList");
+	print Dumper ("getHwTypeList ################wird das noch gebraucht?");
 	#Todo die; ich glaub das wird nicht mehr verwendet
 	return join(',', sort keys %models);
 }
@@ -398,7 +398,7 @@ sub parseFrameData($$$) {
 	my $hmwId            = $hash->{'DEF'};
 	my $chHash           = $main::modules{'HM485'}{'defptr'}{$hmwId . '_' . $channel};
 	my ($behaviour,$behavBool) = HM485::Device::getChannelBehaviour($chHash);
-	print Dumper ("parseFrameData behav:$behaviour bool:$behavBool");
+	#print Dumper ("parseFrameData behav:$behaviour bool:$behavBool");
 	my $frameData        = getFrameInfos($deviceKey, $data, 1, $behaviour, 'from_device');
 	my $retVal           = convertFrameDataToValue($hash, $deviceKey, $frameData);
 	return $retVal;
@@ -438,16 +438,15 @@ sub getFrameInfos($$;$$$) {
 				#print Dumper ("behaviour ist Nicht gesetzt");
 				#Todo Direct auslesen welcher Channel welchen behaviour hat
 				if ($frame eq 'info_frequency') {next;}
-				print Dumper ("getFrameInfos lasse info_frequency aus");
 			} elsif ($behaviour eq 'analog_output') {
 				if ($frame eq 'info_level') {next;}
+			} else {
+				if ($frame eq 'info_frequency') {next;}
 			}
 						
 			my $fType  = $frames->{$frame}{'type'};
 			my $fEvent = $frames->{$frame}{'event'} ? $frames->{$frame}{'event'} : 0;
 			my $fDir   = $frames->{$frame}{'direction'} ? $frames->{$frame}{'direction'} : 0;
-			
-			#print Dumper ("getFrameInfos ", $behaviour, $deviceKey,$event,$frame, $frames->{$frame});
 			
 			if ($frameType == $fType &&
 			   (!defined($event) || $event == $fEvent) &&
@@ -514,8 +513,8 @@ sub getValueFromEepromData($$$$;$) {
 		
 		$eepromValue = getValueFromHexData($data, $adrStart, $size);
 		#debug
-		my $dbg = sprintf("0x%X",$adrId);
-		my $eep = sprintf("0x%X",$eepromValue);
+		#my $dbg = sprintf("0x%X",$adrId);
+		#my $eep = sprintf("0x%X",$eepromValue);
 		#print Dumper ("getValueFromEepromDatahexdata:$adrStart, $dbg, $size, $littleEndian, $eep");
 		
 		if ($wholeByte == 0) {
@@ -642,7 +641,7 @@ sub getValueFromHexData($;$$) {
 sub convertFrameDataToValue($$$) {
 	my ($hash, $deviceKey, $frameData) = @_;
 	
-	print Dumper ("convertFrameDataToValue $frameData->{'id'}");
+	#print Dumper ("convertFrameDataToValue $frameData->{'id'}");
 
 	if ($frameData->{'ch'}) {
 		foreach my $valId (keys %{$frameData->{'params'}}) {
@@ -762,7 +761,7 @@ sub buildFrame($$$) {
 		);
 
 		if (ref($frameHash->{'parameter'}) eq 'HASH') {
-			#we rewrite the new configuration to the old one
+			#Todo we rewrite the new configuration to the old one
 			foreach my $idx (keys $frameHash->{'parameter'}){
 				if (ref($frameHash->{'parameter'}{$idx}) eq 'HASH' && $frameHash->{'parameter'}{$idx}{'size'}) {
 					$frameHash->{'parameter'}{'size'} = $frameHash->{'parameter'}{$idx}{'size'};
@@ -772,11 +771,11 @@ sub buildFrame($$$) {
 		}
 		
 
-		$retVal = sprintf('%02X%02X', $frameHash->{'type'}, $chNr-1); ##OK
+		$retVal = sprintf('%02X%02X', $frameHash->{'type'}, $chNr-1);
 		
 
 		foreach my $key (keys %{$frameData}) {
-			my $valueId = $frameData->{$key}{'physical'}{'value_id'}; ##state
+			my $valueId = $frameData->{$key}{'physical'}{'value_id'};
 
 			if ($valueId && ref($frameHash->{'parameter'}) eq 'HASH') {
 				my $paramLen = $frameHash->{'parameter'}{'size'} ? int($frameHash->{'parameter'}{'size'}) : 1;
@@ -808,7 +807,7 @@ sub dataConversion($$;$) {
 		#ist hier das device.pm file noch zu machen ? oder stimmt das wirklich
 		my $type = $tmpConvertConfig->{'type'};
 		if (!$type) {
-			#todo da geht noch mehr ich verstehs noch nicht ganz if type or value_map
+			#Todo da geht noch mehr ich verstehs noch nicht ganz if type or value_map
 			#es gibt nich nur {'1'}{'type'} auch 2 und 3 hab ich schon gesehen
 			#ich glaube das muss nacheinander duchgeackert werden
 			$type = $tmpConvertConfig->{'1'}{'type'};
@@ -896,8 +895,8 @@ sub getChannelValueMap($$$$) {
 	
 	my ($channelBehaviour,$bool) = HM485::Device::getChannelBehaviour($chHash);
 	
-	print Dumper ("SetChannelState:$chType beahviour: $channelBehaviour $bool");
-	
+	#print Dumper ("SetChannelState:$chType beahviour: $channelBehaviour $bool");
+	#Todo Wo finde ich hmw_analog_output_values was ist wenn es jemand auf hbw_analog_output_values umtauft 
 	my $valuePrafix = $bool ? '/subconfig/paramset/hmw_'. $channelBehaviour. 
 		'_values/parameter' : '/paramset/values/parameter/';
 	
@@ -907,7 +906,7 @@ sub getChannelValueMap($$$$) {
 	
 	my $retVal;
 	if (defined($values)) {
-		print Dumper ("getChannelValueMap $valId");
+		#print Dumper ("getChannelValueMap $valId");
 		if (exists ($values->{'id'})) {
 			#oh wie ich diese id's hasse :-(
 			#print Dumper ("OJE eine ID getChannelValueMap",$values);
@@ -935,7 +934,7 @@ sub getEmptyEEpromMap ($) {
 	my $eepromAddrs = parseForEepromData(getValueFromDefinitions($deviceKey));
 	
 	#my $dbg = getValueFromDefinitions($deviceKey);
-	print Dumper ("getEmptyEEpromMap",$deviceKey,$eepromAddrs);
+	#print Dumper ("getEmptyEEpromMap",$deviceKey,$eepromAddrs);
 
 	my $eepromMap = {};
 	my $blockLen = 16;
@@ -1139,16 +1138,7 @@ sub parseForEepromData($;$$) {
 =cut
 sub getEEpromData($$) {
 	my ($paramHash, $params) = @_;
-	print Dumper ("getEEpromData",$paramHash,$params);
-#"physical" => {
-#                                    "address" => {
-#                                        "index" => 10,
-#                                        "step" => 1
-#                                    },
-#                                    "interface" => "eeprom",
-#                                    "size" => 1,
-#                                    "type" => "integer"
-#                                }
+	#print Dumper ("getEEpromData",$paramHash,$params);
 
 	my $count = ($params->{'count'} && $params->{'count'} > 0) ? $params->{'count'} : 1; 
 	my $retVal;
@@ -1287,7 +1277,7 @@ sub getAllowedSets($) {
    		'valve.level' 	=> "slider,0,1,100 on:noArg off:noArg",
    		'button.long'	=> "noArg",
    		'button.short'	=> "noArg",
-   		'digital_analog_output.frequency' => "slider,0,1,100", # frequency2:textField",
+   		'digital_analog_output.frequency' => "slider,0,1,50000", # frequency2:textField",
    		'door_sensor.state' => "feedbackerwünscht"
 	);
 	

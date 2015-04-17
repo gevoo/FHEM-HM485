@@ -141,10 +141,9 @@ sub HM485_LAN_Define($$) {
 
 	$hash->{msgCounter} = 0;
 	$hash->{STATE} = 'none';
-
-	$data{FWEXT}{test}{SCRIPT} = 'hm485.js?' . gettimeofday()
-		. '"><script type="text/javascript" charset="UTF-8';
-
+	
+    # $data{FWEXT}{test}{SCRIPT} = 'hm485.js?' . gettimeofday() . '"><script type="text/javascript" charset="UTF-8';
+    $data{FWEXT}{test}{SCRIPT} = 'hm485.js?' . gettimeofday();
 	return $ret;
 }
 =head2
@@ -1027,8 +1026,6 @@ sub HM485_LAN_checkAndCreateHM485d($) {
 		my $HM485dGpioTxenCmd1 = AttrVal($name, 'HM485d_gpioTxenCmd1', undef);
 		my $HM485dLogfile      = AttrVal($name, 'HM485d_logfile',      undef);
 		my $HM485dLogVerbose   = AttrVal($name, 'HM485d_verbose',   undef);
-		$HM485dLogVerbose = $HM485dLogVerbose ? $HM485dLogVerbose : $attr{global}{verbose};
-		print Dumper $HM485dLogVerbose;
 	
 		my $HM485dCommandLine = 'HM485d.pl';
 		$HM485dCommandLine.= ($HM485dSerialNumber) ? ' --serialNumber ' . $HM485dSerialNumber : '';

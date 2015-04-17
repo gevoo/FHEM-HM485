@@ -29,6 +29,7 @@ use lib::HM485::Device;
 use lib::HM485::Util;
 use lib::HM485::FhemWebHelper;
 use lib::HM485::ConfigurationManager;
+use lib::HM485::PeeringManager;
 #use lib::HM485::Command;
 
 use Scalar::Util qw(looks_like_number);
@@ -184,7 +185,7 @@ sub HM485_Define($$) {
 			} 
 
 		} else {
-			# We defined a the device
+			# We defined a device
 			AssignIoPort($hash);
 
 			HM485::Util::logger(
@@ -204,7 +205,7 @@ sub HM485_Define($$) {
 					);
 
 					HM485_GetInfos($hash, $hmwId, 0b111);
-	#				HM485_GetConfig($hash, $addr);
+					HM485_GetConfig($hash, $addr);
 				} else {
 					# Todo: Maybe we must queue "auto get info" if IODev not opened yet 
 				}
@@ -288,7 +289,7 @@ sub HM485_Parse($$) {
 	my $msgId   = ord(substr($message, 2, 1));
 	my $msgCmd  = ord(substr($message, 3, 1));
 	my $msgData = uc( unpack ('H*', substr($message, 4)));
-
+	
 	if ($msgCmd == HM485::CMD_RESPONSE) {
 		HM485_SetStateAck($ioHash, $msgId, $msgData);
 		HM485_ProcessResponse($ioHash, $msgId, substr($msgData,2));
@@ -318,7 +319,6 @@ sub HM485_Set($@) {
 	my $name  = $params[0];
 	my $cmd   = $params[1];
 	my $value = $params[2];
-
 	my $msg = '';
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 
@@ -360,18 +360,45 @@ sub HM485_Set($@) {
 			$msg = 'Unknown argument ' . $cmd . ', choose one of ' . $arguments;
 
 		} else {
-			
+			#print Dumper ("HM485_Set cmd: $cmd");# frequency
+						
 			if ($cmd eq 'press_long' || $cmd eq 'press_short') {
 				#Todo: Make ready
-				$msg = 'set ' . $name . ' ' . $cmd . ' not yet implemented'; 
-
+				$msg = 'set ' . $name . ' ' . $cmd . ' key sym event not yet implemented';
+			
+			} elsif ($cmd eq 'on' || $cmd eq 'off') {
+				
+				$hash->{STATE}                 = 'set_'.$cmd;
+				setReadingsVal($hash,'state','set_'.$cmd,TimeNow());
+				
+				$msg = HM485_SetChannelState($hash, $cmd, $value);	
+						
 			} elsif ($cmd eq 'config') {
 				$msg = HM485_SetConfig($hash, @params);
+				print Dumper (@params);
+			
+			} elsif ($cmd eq 'frequency') {
+				#Todo frequency schickt nur ein ACK zurück, weiss noch nicht wie das zu lösen ist
+				#müsste ja eigentlich ein ACK Rechen um den Channel zu aktualisieren
+				$hash->{STATE}                 = $value;
+				$hash->{READINGS}{$cmd}{TIME} = TimeNow();
+				$hash->{READINGS}{$cmd}{VAL}  = $value;
+				setReadingsVal($hash, $cmd, $value, TimeNow());
+				
+				$msg = HM485_SetChannelState($hash, $cmd, $value);
+				
 
 			} else {
+				#$hash->{CHANGED}[0]            = $setval; ich weiss nich ob das gebraucht wird
+				$hash->{STATE}                 = 'set_'.$value;
+				$hash->{READINGS}{$cmd}{TIME} = TimeNow();
+				$hash->{READINGS}{$cmd}{VAL}  = 'set_'.$value;
+				setReadingsVal($hash, $cmd, 'set_'.$value, TimeNow());
+				
 				$msg = HM485_SetChannelState($hash, $cmd, $value);
-
 			}
+			
+			
 #			 elsif ($cmd eq 'level') {
 #				#Todo: Make ready
 #				my $chNr  = (length($hmwId) > 8) ? substr($hmwId, 9, 2) : undef;
@@ -420,7 +447,17 @@ sub HM485_Get($@) {
 		} elsif ($cmd eq 'config') {
 			# get module config (eeprom data)
 			HM485_GetConfig($hash, $hmwId);
+			
+		} elsif ($cmd eq 'state') {
+			# get module state
+			#Todo only level or more?
+			HM485_GetState($hash, $hmwId);
+
+		} elsif ($cmd eq '?') {
+			# we do nothing
+			print Dumper ("Get",$cmd);
 		}
+		
 	}
 
 	return $msg;
@@ -516,7 +553,8 @@ sub HM485_FhemwebShowConfig($$$) {
 	my $configHash = HM485::ConfigurationManager::getConfigFromDevice($hash, $chNr);
 
 	# Todo: make ready
-	my $peerHash = $hash->{'PEERINGS'};
+	#my $peerHash = $hash->{'peerings'};
+	my $peerHash = HM485::PeeringManager::getPeeringFromDevice($hash, $chNr);
 
 	my $content = HM485::FhemWebHelper::showConfig($hash, $configHash, $peerHash);
 
@@ -558,6 +596,34 @@ sub HM485_GetInfos($$$) {
 }
 
 =head2
+	Get State from device
+		
+	@param	hash    hash of device addressed
+	@param	string  the HMW id
+	
+=cut
+sub HM485_GetState($$) {
+	my ($hash, $hmwId) = @_;
+	#getState on main Device has no channelId
+	my $channel;
+	if (length($hmwId) > 10) {
+		my $chId  = substr($hmwId,9,2) -1;
+		$channel = sprintf ('%02X' , $chId);
+	} else {
+		$channel = sprintf ('%02X',0);
+	}
+	
+	#Todo Parse for "level_get type = 0x53 im device xml"
+
+	HM485::Util::logger(
+		HM485::LOGTAG_HM485, 3, 'Request state for device ' . substr($hmwId,0,8)
+	);
+	
+		HM485_SendCommand($hash, $hmwId, '53'.$channel);
+}
+
+
+=head2
 	Request device config stoerd in the eeprom of a device
 	ToDo: check model var and if we must clear eepromdata before 
 	
@@ -568,12 +634,13 @@ sub HM485_GetConfig($$) {
 	my ($hash, $hmwId) = @_;
 
 	my $devHash = $modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
+	#print Dumper ("HM485_GetConfig $devHash->{'MODEL'}");
 
 	HM485::Util::logger(
 		HM485::LOGTAG_HM485, 3, 'Request config for device ' . substr($hmwId,0,8)
 	);
 
-	# here we query eeprom data wit device settings
+	# here we query eeprom data with device settings
 	if ($devHash->{'MODEL'}) {
 		my $eepromMap = HM485::Device::getEmptyEEpromMap($devHash);
 		
@@ -665,14 +732,13 @@ sub HM485_SetConfig($@) {
 		if (scalar (keys %{$setConfigHash})) {
 			$configHash = HM485::ConfigurationManager::getConfigSettings($hash);
 			foreach my $setConfig (keys %{$setConfigHash}) {
-				my $configTypeHash = $configHash->{$setConfig};
+				my $configTypeHash = $configHash->{'parameter'}{$setConfig};
 				$msg = HM485_ValidateSettings(
 					$configTypeHash, $setConfig, $setConfigHash->{$setConfig}
 				);
-				
 				if (!$msg) {
 					$validatedConfig->{$setConfig}{'value'} = $setConfigHash->{$setConfig};
-					$validatedConfig->{$setConfig}{'config'} = $configHash->{$setConfig};
+					$validatedConfig->{$setConfig}{'config'} = $configHash->{'parameter'}{$setConfig};
 				} else {
 					last;
 				}
@@ -680,13 +746,13 @@ sub HM485_SetConfig($@) {
 		}
 		
 		# If validation success
+		#print Dumper ("SetConfig",$validatedConfig);
 		if (!$msg) {
 			my $convertetSettings = HM485::ConfigurationManager::convertSettingsToEepromData(
 				$hash, $validatedConfig
 			);
-
 			if (scalar (keys %{$convertetSettings})) {
-			 	my $hmwId = $hash->{DEF};
+			 	my $hmwId = $hash->{'DEF'};
 
 				foreach my $adr (keys %{$convertetSettings}) {
 					HM485::Util::logger(
@@ -701,13 +767,17 @@ sub HM485_SetConfig($@) {
 					$value    = sprintf ('%0' . ($size * 2) . 'X', $value);
 					$adr      = sprintf ('%04X' , $adr);
 
-#	print Dumper("$adr: $value");
-	
+    #print Dumper("HM485_SetConfig $hmwId $adr: $size: $value");
+
 					HM485_SendCommand($hash, $hmwId, '57' . $adr . $size . $value);   # (W) write eeprom data
 				}
 				HM485_SendCommand($hash, $hmwId, '43');                               # (C) reread config
 			}
 		}
+	
+	
+	
+	
 	} else {
 		$msg = '"set config needs 2 more parameter';
 	}
@@ -718,25 +788,30 @@ sub HM485_SetConfig($@) {
 sub HM485_SetChannelState($$$) {
 	my ($hash, $cmd, $value) = @_;
 	my $retVal = '';
-
+	
 	my ($hmwId, $chNr) = HM485::Util::getHmwIdAndChNrFromHash($hash);
 	my $devHash        = $main::modules{'HM485'}{'defptr'}{substr($hmwId,0,8)};
 	my $deviceKey      = HM485::Device::getDeviceKeyFromHash($devHash);
 	my $chType         = HM485::Device::getChannelType($deviceKey, $chNr);
-
 	my $values;
-	my $channelBehaviour = HM485::Device::getChannelBehaviour($hash);
-	my $valuePrafix = $channelBehaviour ? '.' . $channelBehaviour : '';
-print Dumper($valuePrafix);
+	my ($channelBehaviour,$bool) = HM485::Device::getChannelBehaviour($hash);
+	
+	#print Dumper ("SetChannelState:$chType beahviour: $channelBehaviour $bool");
+	
+	my $valuePrafix = $bool ? '/subconfig/paramset/hmw_'. $channelBehaviour. 
+		'_values/parameter' : '/paramset/values/parameter/';
+	
 	$values = HM485::Device::getValueFromDefinitions(
-		$deviceKey . '/channels/' . $chType .'/params/values' . $valuePrafix . '/'
+		$deviceKey . '/channels/' . $chType . $valuePrafix
 	);
-
+#print Dumper ("SetChannelState $value $cmd",$values);
 	my $frameData;
-#	my $frameType = $valueHash->{physical}{set}{request};
 
-#		print Dumper($deviceKey . '/channels/' . $chType .'/params/values' . $valuePrafix . '/');
-
+	if ($values->{'id'}) {
+		#print Dumper ("OJE eine ID SetChannelState"); 
+		$values = HM485::Util::convertIdToHash($values);
+	}
+	
 	foreach my $valueKey (keys %{$values}) {
 		if ($valueKey eq 'state' || $valueKey eq 'level' || $valueKey eq 'frequency') {
 			my $valueHash = $values->{$valueKey} ? $values->{$valueKey} : '';
@@ -745,13 +820,18 @@ print Dumper($valuePrafix);
 
 			if ($cmd eq 'on' || $cmd eq 'off') {
 				my $control = $valueHash->{'control'} ? $valueHash->{'control'} : '';
-				if ($control eq 'switch.state' || $control eq 'dimmer.level') {
-					$frameValue = HM485::Device::onOffToState($valueHash, $cmd);
+				if ($control eq 'switch.state' || $control eq 'blind.level' ||
+					$control eq 'dimmer.level' || $control eq 'valve.level') {
+					#print Dumper("SetChannelState control: $control");
+					$frameValue = HM485::Device::onOffToState($valueHash, $cmd); ##OK
+					$value = $cmd;
 				} else {
 					$retVal = 'no on / off for this channel';
 				}
 			} else {
+				
 				$frameValue = HM485::Device::valueToState($chType, $valueHash, $valueKey, $value);
+				
 			}
 
 			$frameData->{$valueKey} = {
@@ -759,20 +839,25 @@ print Dumper($valuePrafix);
 				physical => $valueHash->{'physical'}
 			};
 
-			# Todo: rework
-			# update state before response
-			my $statValue = HM485::Device::dataConversion(
-				$value, $valueHash->{'conversion'}, 'from_device'
-			);
-			readingsSingleUpdate($hash, $valueKey, $statValue, 0);
-			$hash->{'STATE'} = ($valueKey eq 'state') ? $value : $valueKey . '_' . $statValue;
-			#############
+			#my $statValue = HM485::Device::dataConversion(
+			#	$value, $valueHash->{'conversion'}, 'from_device'
+			#);
+			
+			
+			if ($frameData) {
+				my $frameType = $valueHash->{'physical'}{'set'}{'request'};
+		
+				my $data = HM485::Device::buildFrame($hash, $frameType, $frameData);
+				
+				#print Dumper ("SetChannelState $value $cmd",$data,$frameType,$frameData);
+				
+				HM485_SendCommand($hash, $hmwId, $data) if length $data;
+			}
+			
 		}
-
-		my $frameType = 'level_set';
-		my $data = HM485::Device::buildFrame($hash, $frameType, $frameData);
-		HM485_SendCommand($hash, $hmwId, $data);
 	}
+	
+	
 
 	return $retVal;
 }
@@ -780,7 +865,7 @@ print Dumper($valuePrafix);
 sub HM485_ValidateSettings($$$) {
 	my ($configHash, $cmdSet, $value) = @_;
 	my $msg = '';
-
+#print Dumper ("ValidateSettings:$cmdSet->$value",$configHash);
 	if (defined($value)) {
 		my $logical = $configHash->{'logical'};
 		if ($logical->{'type'}) {
@@ -804,10 +889,18 @@ sub HM485_ValidateSettings($$$) {
 				}
 
 			} elsif ($logical->{'type'} eq 'option') {
-				my @optionValues = HM485::ConfigurationManager::optionsToArray($logical->{'options'});
-#				my @optionValues = map {s/ //g; $_; } split(',', $logical->{options});
-				if ( !(grep $_ eq $value, @optionValues) ) {
-					$msg = 'must be on of: ' . join(', ', @optionValues);					
+				my $optionValues = HM485::ConfigurationManager::optionsToArray($logical->{'option'});
+				my $found = 0;
+				my @Values = map {s/ //g; $_; } split(',', $optionValues);
+				
+				foreach my $val (@Values) {
+					my ($item,$num) = split(':',$val);	
+					if ($num eq $value) {
+						$found = 1;
+					}				
+				}
+				if ($found eq '0') {
+					$msg = 'must be one of: ' . join(': ', $optionValues);					
 				} 
 			}
 		}
@@ -868,11 +961,11 @@ sub HM485_ProcessResponse($$$) {
 		my $hmwId       = $ioHash->{'.waitForResponse'}{$msgId}{'hmwId'};
 		my $requestData = $ioHash->{'.waitForResponse'}{$msgId}{'requestData'};
 		my $hash        = $modules{'HM485'}{'defptr'}{$hmwId};
-print Dumper($requestType);
+
 		# Check if main device exists or we need create it
 		if($hash->{'DEF'} && $hash->{'DEF'} eq $hmwId) {
 	
-			if (grep $_ eq $requestType, ('53', '78')) {                    # S (level_get), x (level_set) reports State
+			if (grep $_ eq $requestType, ('53', '78')) {             # S (level_get), x (level_set), reports State
 #				HM485_processStateData($msgData);
 
 #			} elsif (grep $_ eq $requestType, ('4B', 'CB')) {               # K (Key), Ë (Key-sim) report State
@@ -883,6 +976,10 @@ print Dumper($requestType);
 
 			} elsif (grep $_ eq $requestType, ('68', '6E', '76')) {         # h (module type), n (serial number), v (firmware version)
 				HM485_SetAttributeFromResponse($hash, $requestType, $msgData);
+
+			#} elsif (grep $_ eq $requestType, ('69')) {  			        # i (info_level info frequency)
+			#	HM485_processStateData($hash, $requestType, $msgData);
+
 	
 #			} elsif ($requestType eq '70') {                                # p (report packet size, only in bootloader mode)
 
@@ -1004,6 +1101,7 @@ sub HM485_SetAttributeFromResponse($$$) {
 =cut
 sub HM485_ProcessEvent($$) {
 	my ($ioHash, $msgData) = @_;
+	#print Dumper ("ProcessEvent",$msgData);
 
 	my $hmwId = substr($msgData, 10,8);
 	$msgData  = (length($msgData) > 17) ? substr($msgData, 18) : '';;
@@ -1038,7 +1136,6 @@ sub HM485_ProcessEvent($$) {
 sub HM485_CheckForAutocreate($$;$$) {
 	my ($ioHash, $hmwId, $requestType, $msgData) = @_;
 	
-#print Dumper("$hmwId, $requestType, $msgData");	
 	my $logTxt = 'Device %s not defined yet. We need the %s for autocreate';
 
 	if ($requestType && $msgData) {
@@ -1093,7 +1190,7 @@ sub HM485_SendCommand($$$) {
 			NAME  => '.tmp',
 		};
 	}
-
+	
 	my %params = (hash => $devHash, hmwId => $hmwId, data => $data);
 	InternalTimer(gettimeofday(), 'HM485_DoSendCommand', \%params, 0);
 } 
@@ -1108,7 +1205,7 @@ sub HM485_DoSendCommand($) {
 
 	my $hmwId       = $paramsHash->{'hmwId'};
 	my $data        = $paramsHash->{'data'};
-	my $requestType = substr($data, 0,2); 
+	my $requestType = substr($data, 0,2);
 	my $hash        = $paramsHash->{'hash'};
 	my $ioHash      = $hash->{'IODev'};
 
@@ -1118,8 +1215,8 @@ sub HM485_DoSendCommand($) {
 	my $requestId = IOWrite($hash, HM485::CMD_SEND, \%params);
 
 	# frame types which must return values
-	my @validRequestTypes = ('4B', '52', '53', '68', '6E', '70', '72', '73', '76', '78', 'CB');
-
+	my @validRequestTypes = ('4B', '52', '53', '68', '6E', '70', '72', '76', '78', 'CB', '73'); #73 ist s wird nur bei frequency
+																	                      # geschickt und antwortet nur mit ACK
 	# frame types which must be acked only
 	my @waitForAckTypes   = ('21', '43', '57', '67', '6C', '73');
 
@@ -1141,18 +1238,18 @@ sub HM485_DoSendCommand($) {
 	@param	hash    hash of device addressed
 	@param	string  the HMW id
 	@param	string  the message data
-	@param	string  action type such us response, frame, ...
+	@param	string  action type such as response, frame, ...
 =cut
 sub HM485_ProcessChannelState($$$$) {
 	my ($hash, $hmwId, $msgData, $actionType) = @_;
-
-#print Dumper($msgData);
+	#print Dumper ("ProcessChannelState",$msgData, $actionType);
 	my $name = $hash->{'NAME'};
 	if ($msgData) {
 		if ($hash->{'MODEL'}) {
 			my $valueHash = HM485::Device::parseFrameData($hash, $msgData, $actionType);
 			if ($valueHash->{'ch'}) {
 				my $chHash = HM485_GetHashByHmwid($hash->{'DEF'} . '_' . $valueHash->{'ch'});
+				#print Dumper ("ProcessChannelState value:" ,$valueHash->{'value'});
 				HM485_ChannelUpdate($chHash, $valueHash->{'value'});
 			}
 		}
@@ -1195,15 +1292,18 @@ sub HM485_ChannelDoUpdate($) {
 	my $doTrigger = $params->{'doTrigger'} ? 1 : 0;
 
 	readingsBeginUpdate($chHash);
-#	print Dumper($valueHash);
+	
 	foreach my $valueKey (keys %{$valueHash}) {
 		my $value = $valueHash->{$valueKey};
-
 		if (defined($value)) {
 			# we trigger events only if necesary
 			if (!defined($chHash->{'READINGS'}{$valueKey}{VAL}) ||
 			    $chHash->{'READINGS'}{$valueKey}{'VAL'} ne $value) {
-
+			    $chHash->{'STATE'} = $value;
+			    $chHash->{'READINGS'}{'state'}{'VAL'} = $value;
+			    $chHash->{'READINGS'}{'state'}{'NAME'} = $name;
+			    $chHash->{'READINGS'}{'state'}{'TIME'} = TimeNow();
+			    		    
 				readingsBulkUpdate($chHash, $valueKey, $value);
 				HM485::Util::logger(
 					HM485::LOGTAG_HM485, 2, $name . ': ' . $valueKey . ' -> ' . $value

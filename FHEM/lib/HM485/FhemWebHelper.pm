@@ -26,31 +26,38 @@ sub showConfig($$$) {
 
 sub makeConfigTable($$) {
 	my ($hash, $configHash) = @_;
+
 	my $name = $hash->{NAME};
-	
-#	print Dumper($configHash);
-	
 	my $content = '';
 	my $rowCount = 1;
+	
 	foreach my $cKey (sort keys %{$configHash}) {
 		my $config = $configHash->{$cKey};
 		my $rowContent.= wrapTd($cKey . ':');
 		
 		my $value = '';
-		if ($config->{type} eq 'option') {
+		if ($config->{'type'} eq 'option') {
+			my $possibleValusList = HM485::ConfigurationManager::optionsToArray($config->{'possibleValues'});
 			$value = configSelect(
-				$cKey, $config->{posibleValues}, $config->{value}
-			)
-
-		} elsif ($config->{type} eq 'boolean') {
-			$value = configSelect(
-				$cKey, 'no:0,yes:1', ($config->{value} ? 'yes' : 'no')
+				$cKey, $possibleValusList, $config->{'value'}
 			);
-
+			
+		} elsif ($config->{'type'} eq 'boolean') {
+			$value = configSelect(
+				$cKey, 'no:0,yes:1', $config->{'value'}
+			);
 		} else {
+			my $cSize = $config->{physical}{size};;
+			if ($config->{type} eq 'float') {
+				$cSize = $cSize + 2;
+				$config->{value} = sprintf('%.1f',$config->{value});
+			} elsif ($config->{type} eq 'integer') {
+				$cSize = $cSize * 2;
+			}
+			
 			$value = configInput(
-				$cKey, $config->{value}, $config->{min}, $config->{max}
-			)
+				$cKey, $config->{value}, $config->{min}, $config->{max}, $cSize
+			);
 		}
 		
 		my $unit = $config->{unit} ? $config->{unit} : '';
@@ -82,45 +89,43 @@ sub makeConfigTable($$) {
 	return $content;
 }
 
-sub configInput($$;$$) {
-	my ($name, $value, $min, $max) = @_;
-
-	my $content = '<input onchange="FW_HM485setChange(this)" type="text" size="3" name="' . $name . '" value="' . 
-	               $value . '" class="arg.HM485.config">';
+sub configInput($$;$$$) {
+	my ($name, $value, $min, $max, $size) = @_;
+	
+	my $cSize = ($size ? $size : '3');
+	my $content = '<input onchange="FW_HM485setChange(this)" type="text" size="'.$cSize.'" name="' . $name . '" value="' . 
+	               $value . '" class="arg.HM485.config" style="text-align:right;" />';
 
 	return $content;
 }
 
 =head2
-	Generate a select list of $posibleValues
-	$posibleValues splits at : for name value pais if exists
+	Generate a select list of $possibleValues
+	$possibleValues splits at : for name value pais if exists
 	
 	@param	string	name of the select list
 	@param	string	posible items (comma seperated)
 	@param	string	the value for specific item sould selected
 =cut
 sub configSelect($$$) {
-	my ($name, $posibleValues, $value) = @_;
+	my ($name, $possibleValues, $value) = @_;
 	
 	my $content = '<select onchange="FW_HM485setChange(this)" name="' . $name . '" class="arg.HM485.config">';
 	my $options = '';
-	my @posibleValuesArray = split(',', $posibleValues);
+	my @possibleValuesArray = split(',', $possibleValues);
 
 	# Trim all items in the array
-	@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
+	#@posibleValuesArray = grep(s/^\s*(.*)\s*$/$1/, @posibleValuesArray);
 	
-	my $cc = 0;
-	foreach my $oKey (@posibleValuesArray) {
+	foreach my $oKey (@possibleValuesArray) {
 		my ($optionName, $optionValue) = split(':', $oKey);
-
-		$optionValue = defined($optionValue) ? $optionValue : $optionName;
 		my $selected = '';
-		if ($optionName eq $value || $cc eq $value) {
+		
+		if ($value eq $optionValue) {
 			$selected = ' selected="selected"';
 		}
 
 		$options.= '<option value="' . $optionValue . '"' . $selected . '>' . $optionName . '</option>';
-		$cc++;
 	}
 	
 	$content.= $options . '</select>';
